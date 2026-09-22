@@ -9,8 +9,8 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --purple:#4A0E8F; --purple-mid:#7B2FBE; --purple-bg:#F5EEFB; --gold:#B8860B; --gold-soft:#D4AF37;
-    --ink:#2A1A3D; --muted:#7D6E8C; --line:#E2D9EE; --page:#FBEEF3; --card:#FFFFFF;
+    --purple:#4A0E8F; --purple-mid:#7B2FBE; --purple-bg:#F9F5FD; --gold:#B8860B; --gold-soft:#D4AF37;
+    --ink:#2A1A3D; --muted:#7D6E8C; --line:#E2D9EE; --page:#FDF7FA; --card:#FFFFFF;
     --ok:#1E7A4B; --warn:#B26A00; --err:#C0392B;
   }
   *{box-sizing:border-box}
@@ -21,12 +21,18 @@
   }
   .page-frame{
     max-width:756px;margin:18px auto 28px;border:2px solid var(--gold);border-radius:20px;
-    background:var(--purple-bg);box-shadow:0 6px 22px rgba(74,14,143,.10);overflow:hidden;
+    background:var(--purple-bg);box-shadow:0 6px 22px rgba(74,14,143,.08);overflow:hidden;
   }
-  .wrap{padding:0 14px 14px}
-  .top{padding:22px 14px 10px;background:var(--card);border-bottom:1.5px solid var(--purple-bg)}
-  .top h1{font-family:'Playfair Display',Georgia,serif;font-size:24px;color:var(--purple);margin:0}
-  .top p{margin:4px 0 0;color:var(--muted);font-size:13px}
+  .wrap{padding:10px 14px 14px}
+  .top{padding:20px 18px 16px;background:var(--card);border-bottom:3px solid var(--gold-soft)}
+  .brand-row{display:flex;align-items:center;gap:14px}
+  .brand-badge{width:48px;height:48px;border-radius:50%;flex:0 0 auto;color:#fff;font-weight:800;font-size:12.5px;
+    letter-spacing:.5px;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg,var(--purple),var(--purple-mid));box-shadow:0 3px 8px rgba(74,14,143,.28)}
+  .brand-text{flex:1 1 auto;min-width:0}
+  .top h1{font-family:'Playfair Display',Georgia,serif;font-size:22px;letter-spacing:.6px;color:var(--purple);margin:0}
+  .brand-sub{margin:2px 0 0;font-size:11px;font-weight:700;letter-spacing:2.5px;color:var(--muted);text-transform:uppercase}
+  .brand-stars{margin-left:auto;flex:0 0 auto;display:flex;gap:5px;color:var(--gold-soft);font-size:16px}
 
   .card{background:var(--card);border:1.5px solid var(--gold);border-radius:14px;margin:14px 0;overflow:hidden}
   .ch{background:var(--purple-bg);border-bottom:1px solid var(--purple);color:var(--purple);font-weight:700;font-size:13px;
@@ -103,8 +109,14 @@
 <div class="page-frame">
 
 <div class="top">
-  <h1>Stock Entry</h1>
-  <p>Enter counter stock. Saved directly to the Stock Google Sheet.</p>
+  <div class="brand-row">
+    <div class="brand-badge">VSR</div>
+    <div class="brand-text">
+      <h1>VSR GOLD</h1>
+      <p class="brand-sub">Stock Entry</p>
+    </div>
+    <div class="brand-stars">★★★</div>
+  </div>
 </div>
 
 <div class="wrap">
