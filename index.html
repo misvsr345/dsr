@@ -1,956 +1,722 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VSR GOLD — Daily Sales Record</title>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>VSR GOLD — Stock Entry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 <style>
-:root{
-  --purple:#4A0E8F;--purpleL:#7B2FBE;--purpleM:#6D28D9;--purpleP:#F5F0FF;
-  --gold:#B8860B;--gold2:#D4AF37;
-  --ink:#1A1410;--inkL:#5B4A6E;--muted:#9E8A7A;
-  --border:#E2D9F3;--s2:#FDFCFF;
-  --danger:#C0392B;--success:#1E7A4B;--orange:#E67E22;--orangeBg:#FFF3E0;
-  --green:#1A6B3C;--greenBg:#E8F5EE;
-  --sh:rgba(74,14,143,0.09);
-}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'DM Sans',sans-serif;background:#FDFCFF;color:var(--ink);min-height:100vh;}
+  :root{
+    --purple:#4A0E8F; --purple-mid:#7B2FBE; --purple-bg:#F5EEFB; --gold:#B8860B; --gold-soft:#D4AF37;
+    --ink:#2A1A3D; --muted:#7D6E8C; --line:#E2D9EE; --page:#FBEEF3; --card:#FFFFFF;
+    --ok:#1E7A4B; --warn:#B26A00; --err:#C0392B;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--page); color:var(--ink); font-family:'DM Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    padding:env(safe-area-inset-top,0) 0 40px; -webkit-tap-highlight-color:transparent;
+  }
+  .wrap{max-width:720px;margin:0 auto;padding:0 14px}
+  .top{padding:22px 14px 6px;max-width:720px;margin:0 auto}
+  .top h1{font-family:'Playfair Display',Georgia,serif;font-size:24px;color:var(--purple);margin:0}
+  .top p{margin:4px 0 0;color:var(--muted);font-size:13px}
 
-/* ── HEADER ── */
-header{background:#fff;border-bottom:3px solid var(--gold2);box-shadow:0 2px 20px var(--sh);padding:0 16px;position:sticky;top:0;z-index:200;}
-.hdr{max-width:820px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:12px 0;}
-.logo{width:46px;height:46px;background:linear-gradient(135deg,var(--purple),var(--purpleL));border:2px solid var(--gold2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-weight:700;font-size:12px;color:#fff;flex-shrink:0;letter-spacing:1px;}
-.htxt h1{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:var(--purple);letter-spacing:2px;}
-.htxt p{font-size:9.5px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-top:1px;font-weight:500;}
-.hstars{margin-left:auto;color:var(--gold2);font-size:15px;letter-spacing:4px;}
+  .card{background:var(--card);border:1.5px solid var(--gold);border-radius:14px;margin:14px 0;overflow:hidden}
+  .ch{background:var(--purple-bg);border-bottom:1px solid var(--purple);color:var(--purple);font-weight:700;font-size:13px;
+      letter-spacing:.8px;text-transform:uppercase;padding:11px 16px}
+  .cb{padding:16px}
+  label{display:block;font-size:11px;font-weight:600;letter-spacing:.7px;text-transform:uppercase;color:#6B5A80;margin-bottom:6px}
+  .req{color:var(--purple)}
+  input[type=text],input[type=number],input[type=date],select{
+    width:100%;font:inherit;font-size:15px;color:var(--ink);background:#FCFAFF;border:1.5px solid var(--line);
+    border-radius:10px;padding:11px 12px;outline:none;min-height:44px;
+  }
+  input:focus,select:focus{border-color:var(--purple-mid);box-shadow:0 0 0 3px rgba(123,47,190,.15)}
+  input.bad,select.bad{border-color:var(--err);background:#FFF5F4}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .mb{margin-bottom:14px}
+  @media (max-width:520px){ .g3{grid-template-columns:1fr 1fr} .g3 > .span-all{grid-column:1/-1} }
 
-/* ── NAV TABS ── */
-.nav-tabs{display:flex;gap:0;background:#fff;border-bottom:2px solid var(--gold);max-width:820px;margin:0 auto;}
-.nav-tab{flex:1;padding:11px 8px;border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s;border-bottom:3px solid transparent;margin-bottom:-2px;letter-spacing:.5px;}
-.nav-tab.active{color:var(--purple);border-bottom-color:var(--purple);background:var(--purpleP);}
-.nav-tab:hover:not(.active){color:var(--purple);background:#FAF8FF;}
+  .tgl{display:flex;border:1.5px solid var(--gold);border-radius:10px;overflow:hidden;background:#FBF8FF}
+  .tgl button{flex:1;font:inherit;font-weight:700;font-size:13px;color:#9A8A86;background:transparent;border:0;padding:12px 6px;cursor:pointer;
+    border-right:1px solid var(--line)}
+  .tgl button:last-child{border-right:0}
+  .tgl button.on{background:linear-gradient(135deg,var(--purple),var(--purple-mid));color:#fff}
 
-/* ── PAGES ── */
-.page{display:none;}.page.active{display:block;}
+  .item{background:#fff;border:1.5px solid var(--gold);border-radius:14px;margin:14px 0;overflow:hidden}
+  .item.err{border-color:var(--err)}
+  .item-hd{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;background:var(--purple-bg);
+    border-bottom:1px solid var(--purple);color:var(--purple);font-weight:700;font-size:13px;letter-spacing:.6px;text-transform:uppercase}
+  .rm{background:none;border:0;color:var(--err);font:inherit;font-weight:700;font-size:12px;cursor:pointer;padding:4px 8px}
+  .item-body{padding:16px}
+  .msg{font-size:12px;margin-top:6px;line-height:1.45}
+  .msg.ok{color:var(--ok)} .msg.warn{color:var(--warn)} .msg.err{color:var(--err)} .msg.info{color:var(--muted)}
+  .itemerr{background:#FFF1EF;color:var(--err);font-size:12.5px;font-weight:600;padding:9px 16px;border-bottom:1px solid #F3C9C4}
+  .hide{display:none !important}
+  .retconf{margin-top:8px;font-size:12.5px;display:flex;gap:8px;align-items:flex-start;color:var(--warn);text-transform:none;letter-spacing:0;font-weight:600}
+  .retconf input{width:18px;height:18px;margin-top:1px;flex:0 0 auto}
 
-/* ── WRAP ── */
-.wrap{max-width:820px;margin:0 auto;padding:18px 12px;}
+  .phwrap{position:relative}
+  .phlbl{display:flex;align-items:center;gap:8px;border:1.5px dashed var(--gold-soft);border-radius:10px;background:var(--purple-bg);
+    color:#6B5A80;padding:12px 14px;cursor:pointer;font-size:12.5px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;min-height:44px}
+  .phwrap input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+  .phprev{max-width:100%;max-height:150px;border-radius:8px;margin-top:8px;display:none}
+  .phprev.show{display:block}
+  .phrm{display:none;color:var(--err);font-size:11px;font-weight:700;margin-top:4px;cursor:pointer;background:none;border:0;padding:0;font-family:inherit}
 
-/* ── CARDS ── */
-.card{background:#fff;border:1.5px solid var(--gold);border-radius:12px;margin-bottom:14px;overflow:hidden;box-shadow:0 1px 10px var(--sh);}
-.ch{background:linear-gradient(90deg,var(--purpleP),#FAF5FF);padding:10px 18px;font-family:'Cormorant Garamond',serif;font-size:13px;font-weight:700;color:var(--purple);border-bottom:1px solid var(--gold);display:flex;align-items:center;gap:8px;letter-spacing:2px;text-transform:uppercase;}
-.cb{padding:16px 18px;}
+  .add{width:100%;font:inherit;font-weight:700;color:var(--purple);background:var(--purple-bg);border:2px dashed var(--gold-soft);
+    border-radius:14px;padding:15px;cursor:pointer;font-size:14px}
+  .save{width:100%;font:inherit;font-weight:700;font-size:16px;color:#fff;border:0;border-radius:12px;padding:16px;margin-top:16px;cursor:pointer;
+    background:linear-gradient(135deg,var(--purple),var(--purple-mid));letter-spacing:.5px}
+  .save:disabled{opacity:.6;cursor:default}
+  .clear{width:100%;font:inherit;font-weight:600;font-size:14px;color:var(--purple);background:transparent;border:1.5px solid var(--line);
+    border-radius:12px;padding:12px;margin-top:10px;cursor:pointer}
+  .banner{border-radius:12px;padding:13px 16px;font-size:14px;font-weight:600;margin:14px 0;display:none}
+  .banner.show{display:block}
+  .banner.ok{background:#E7F5EE;color:var(--ok);border:1px solid #BFE3D0}
+  .banner.err{background:#FFF1EF;color:var(--err);border:1px solid #F3C9C4}
+  .banner.info{background:var(--purple-bg);color:var(--purple);border:1px solid var(--line)}
+  :focus-visible{outline:3px solid var(--gold-soft);outline-offset:2px}
 
-/* ── ENTRY BLOCKS ── */
-.entry{background:#fff;border:2px solid var(--gold);border-radius:16px;margin-bottom:18px;overflow:hidden;box-shadow:0 2px 18px var(--sh);}
-.entry-hd{background:linear-gradient(90deg,var(--purpleP),#FAF5FF);padding:11px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1.5px solid var(--gold);}
-.entry-title{font-family:'Cormorant Garamond',serif;font-size:14px;font-weight:700;color:var(--purple);letter-spacing:2px;text-transform:uppercase;}
-.rm-entry{background:none;border:1.5px solid rgba(192,57,43,0.4);border-radius:6px;color:var(--danger);cursor:pointer;padding:4px 14px;font-size:11.5px;font-family:'DM Sans',sans-serif;font-weight:600;transition:all .12s;}
-.rm-entry:hover{background:rgba(192,57,43,0.07);border-color:var(--danger);}
-
-.add-entry-btn{width:100%;padding:14px;border:2.5px dashed var(--gold2);border-radius:12px;background:var(--purpleP);color:var(--purple);font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .18s;margin-bottom:16px;}
-.add-entry-btn:hover{background:#EDE8FF;border-color:var(--purple);}
-
-/* ── GRID ── */
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
-.mb12{margin-bottom:12px;}.mb14{margin-bottom:14px;}
-
-/* ── LABELS & INPUTS ── */
-label{display:block;font-size:10px;font-weight:600;color:var(--inkL);margin-bottom:5px;letter-spacing:1.2px;text-transform:uppercase;}
-.req{color:var(--purple);margin-left:2px;}
-input[type="text"],input[type="date"],input[type="tel"],select{width:100%;padding:9px 13px;border:1.5px solid var(--border);border-radius:8px;font-size:13.5px;font-family:'DM Sans',sans-serif;color:var(--ink);background:var(--s2);transition:border-color .15s,box-shadow .15s;-webkit-appearance:none;appearance:none;}
-input::placeholder{color:var(--muted);font-size:12.5px;}
-input:focus,select:focus{outline:none;border-color:var(--purpleL);background:#FDFAFF;box-shadow:0 0 0 3px rgba(123,47,190,.10);}
-select{cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%234A0E8F' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;}
-input.err-inp{border-color:var(--danger)!important;background:#fff5f5!important;}
-.mob-err{display:none;color:var(--danger);font-size:11px;font-weight:700;margin-top:4px;}
-.mob-err.show{display:block;}
-
-/* ── TOGGLES ── */
-.tgl{display:flex;border:1.5px solid var(--gold);border-radius:8px;overflow:hidden;background:#F9F7FF;}
-.tgl button{flex:1;padding:9px 6px;border:none;border-right:1px solid var(--border);font-size:12.5px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;color:var(--muted);background:transparent;transition:all .15s;}
-.tgl button:last-child{border-right:none;}
-.tgl button.on{background:linear-gradient(135deg,var(--purple),var(--purpleL));color:#fff;}
-
-/* ── PAYMENT STATUS ── */
-.pay-status-section{background:linear-gradient(90deg,var(--orangeBg),#FFF9F0);border:2px solid var(--orange);border-radius:10px;padding:14px 16px;margin-bottom:14px;}
-.pay-status-title{font-family:'Cormorant Garamond',serif;font-size:13px;font-weight:700;color:var(--orange);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;}
-/* 3-button payment toggle */
-.pay-tgl{display:flex;border:2px solid var(--orange);border-radius:8px;overflow:hidden;}
-.pay-tgl button{flex:1;padding:11px 4px;border:none;border-right:1px solid rgba(230,126,34,0.3);font-size:12.5px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;color:var(--muted);background:#FFF9F5;transition:all .15s;line-height:1.3;}
-.pay-tgl button:last-child{border-right:none;}
-.pay-tgl button.on.purchased{background:linear-gradient(135deg,var(--success),#27AE60);color:#fff;}
-.pay-tgl button.on.advance{background:linear-gradient(135deg,var(--orange),#F39C12);color:#fff;}
-.pay-tgl button.on.order{background:linear-gradient(135deg,var(--green),#27AE60);color:#fff;}
-
-/* ── SUCCESS BADGE ── */
-.ss-status{display:inline-block;padding:5px 18px;border-radius:20px;font-weight:700;font-size:12px;letter-spacing:2px;margin:6px 0;}
-.ss-status.advance{background:var(--orangeBg);color:var(--orange);border:1.5px solid var(--orange);}
-.ss-status.purchased{background:#E8F5E9;color:var(--success);border:1.5px solid var(--success);}
-.ss-status.order{background:var(--greenBg);color:var(--green);border:1.5px solid var(--green);}
-
-/* ── PHOTO ── */
-.phwrap{position:relative;}
-.phlbl{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:1.5px dashed var(--gold2);border-radius:8px;background:var(--purpleP);cursor:pointer;transition:all .15s;min-height:42px;}
-.phlbl:hover{background:#EDE8FF;border-color:var(--purple);}
-.phi{font-size:17px;flex-shrink:0;}
-.pht{font-size:11.5px;color:var(--inkL);}
-.phn{font-size:11px;color:var(--success);font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-input[type="file"]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;}
-.phprev{margin-top:6px;width:100%;max-height:120px;object-fit:contain;border-radius:6px;border:1.5px solid var(--gold);display:none;}
-.phprev.show{display:block;}
-.ph-size{font-size:10px;color:var(--muted);margin-top:3px;}
-
-/* ── LOADER BANNER ── */
-.init-banner{background:var(--purpleP);border:1.5px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--purple);font-weight:600;}
-.init-banner.hide{display:none;}
-.spin{display:inline-block;animation:spin 1s linear infinite;}
-@keyframes spin{to{transform:rotate(360deg);}}
-
-/* ── SUBMIT BAR ── */
-.sbar{position:sticky;bottom:0;background:linear-gradient(to top,#FDFCFF 65%,transparent);padding:14px 0 10px;}
-.sbtn{width:100%;padding:15px;background:linear-gradient(135deg,var(--purple),var(--purpleL),var(--purpleM));color:#fff;border:2px solid var(--gold2);border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:'Cormorant Garamond',serif;letter-spacing:2.5px;text-transform:uppercase;transition:all .2s;box-shadow:0 4px 20px rgba(74,14,143,.3);}
-.sbtn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 6px 28px rgba(74,14,143,.4);}
-.sbtn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
-
-/* ── TOAST ── */
-.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:11px 26px;border-radius:24px;font-size:13px;font-weight:600;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap;z-index:9999;box-shadow:0 6px 24px rgba(0,0,0,.25);}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-.toast.ok{background:var(--success);}.toast.err{background:var(--danger);}
-
-/* ── SUCCESS SCREEN ── */
-.success-screen{display:none;position:fixed;inset:0;background:#fff;z-index:9000;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;}
-.success-screen.show{display:flex;}
-.ss-icon{width:80px;height:80px;background:linear-gradient(135deg,var(--purple),var(--purpleL));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:20px;}
-.ss-title{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:700;color:var(--purple);letter-spacing:2px;margin-bottom:8px;}
-.ss-id{font-size:22px;font-weight:700;color:var(--gold);letter-spacing:3px;margin:8px 0;background:var(--purpleP);padding:8px 24px;border-radius:8px;border:1.5px solid var(--gold2);}
-.ss-sub{font-size:13px;color:var(--inkL);margin-bottom:16px;line-height:1.6;}
-.ss-btn{padding:13px 36px;background:linear-gradient(135deg,var(--purple),var(--purpleL));color:#fff;border:2px solid var(--gold2);border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Cormorant Garamond',serif;letter-spacing:2px;}
-
-.spacer{height:90px;}
-
-/* ── UPDATE PAYMENT PAGE ── */
-.upd-section{background:linear-gradient(90deg,var(--orangeBg),#FFF9F0);border:2px solid var(--orange);border-radius:12px;padding:18px;margin-bottom:16px;}
-.upd-title{font-family:'Cormorant Garamond',serif;font-size:15px;font-weight:700;color:var(--orange);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
-.dsr-search-row{display:flex;gap:10px;align-items:flex-end;}
-.dsr-search-row input{flex:1;}
-.search-btn{padding:9px 18px;background:linear-gradient(135deg,var(--purple),var(--purpleL));color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;transition:all .15s;}
-.search-btn:hover{opacity:.88;}
-.search-btn:disabled{opacity:.5;cursor:not-allowed;}
-
-.entry-card{background:#fff;border:2px solid var(--gold2);border-radius:12px;overflow:hidden;margin-bottom:16px;box-shadow:0 2px 18px var(--sh);}
-.ec-header{background:linear-gradient(90deg,var(--purpleP),#FAF5FF);padding:12px 18px;border-bottom:1.5px solid var(--gold);display:flex;align-items:center;justify-content:space-between;}
-.ec-dsr{font-family:monospace;font-size:16px;font-weight:700;color:var(--purple);letter-spacing:3px;}
-.ec-body{padding:16px 18px;}
-.info-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);}
-.info-row:last-child{border-bottom:none;}
-.ir-lbl{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
-.ir-val{font-size:13px;font-weight:600;color:var(--ink);text-align:right;max-width:60%;}
-
-.status-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:1px;}
-.badge-advance{background:var(--orangeBg);color:var(--orange);border:1.5px solid var(--orange);}
-.badge-purchased{background:#E8F5E9;color:var(--success);border:1.5px solid var(--success);}
-.badge-order{background:var(--greenBg);color:var(--green);border:1.5px solid var(--green);}
-.badge-other{background:var(--purpleP);color:var(--purple);border:1.5px solid var(--purpleL);}
-
-.status-update-box{background:#fff;border:2px solid var(--gold);border-radius:12px;padding:18px;margin-top:0;}
-.sut-label{font-size:11px;font-weight:700;color:var(--inkL);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;}
-.pay-tgl4{display:flex;border:2px solid var(--orange);border-radius:8px;overflow:hidden;margin-bottom:12px;}
-.pay-tgl4 button{flex:1;padding:11px 4px;border:none;border-right:1px solid rgba(230,126,34,0.3);font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;color:var(--muted);background:#FFF9F5;transition:all .15s;line-height:1.3;}
-.pay-tgl4 button:last-child{border-right:none;}
-.pay-tgl4 button.on.t-advance{background:linear-gradient(135deg,var(--orange),#F39C12);color:#fff;}
-.pay-tgl4 button.on.t-purchased{background:linear-gradient(135deg,var(--success),#27AE60);color:#fff;}
-.pay-tgl4 button.on.t-order{background:linear-gradient(135deg,var(--green),#27AE60);color:#fff;}
-.pay-tgl4 button.on.t-other{background:linear-gradient(135deg,var(--purple),var(--purpleL));color:#fff;}
-.other-inp-wrap{display:none;margin-bottom:12px;}
-.other-inp-wrap.show{display:block;}
-.upd-confirm-btn{width:100%;padding:14px;background:linear-gradient(135deg,var(--success),#27AE60);color:#fff;border:2px solid #1E7A4B;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Cormorant Garamond',serif;letter-spacing:2px;text-transform:uppercase;transition:all .2s;box-shadow:0 3px 16px rgba(30,122,75,.25);}
-.upd-confirm-btn:hover:not(:disabled){transform:translateY(-1px);}
-.upd-confirm-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
-
-.upd-result{display:none;background:#E8F5E9;border:2px solid var(--success);border-radius:10px;padding:16px 18px;margin-top:12px;text-align:center;}
-.upd-result.show{display:block;}
-.upd-result.err-result{background:#fff5f5;border-color:var(--danger);}
-.upd-result-icon{font-size:28px;margin-bottom:6px;}
-.upd-result-title{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;color:var(--success);letter-spacing:1px;margin-bottom:4px;}
-.upd-result.err-result .upd-result-title{color:var(--danger);}
-.upd-result-msg{font-size:12.5px;color:var(--inkL);line-height:1.5;}
-.upd-again-btn{margin-top:12px;padding:10px 28px;background:var(--purple);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;}
-
-.no-result-msg{text-align:center;padding:24px;color:var(--muted);font-size:13px;display:none;}
-.no-result-msg.show{display:block;}
-
-/* ── HOW TO USE BOX ── */
-.howto{background:var(--purpleP);border:1.5px dashed var(--purpleL);border-radius:10px;padding:14px 16px;margin-bottom:16px;}
-.howto-title{font-size:11px;font-weight:700;color:var(--purple);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;}
-.howto ol{margin-left:16px;font-size:12.5px;color:var(--inkL);line-height:2;}
-
-@media(max-width:520px){.g2{grid-template-columns:1fr;}.g3{grid-template-columns:1fr 1fr;}.hstars{display:none;}.cb{padding:12px 12px;}.dsr-search-row{flex-direction:column;}.dsr-search-row input,.search-btn{width:100%;}}
+  .statusbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--muted);
+    padding:8px 2px;font-weight:600}
+  .statusbar-dot{width:9px;height:9px;border-radius:50%;background:var(--ok);flex:0 0 auto;
+    box-shadow:0 0 0 3px rgba(30,122,75,.15)}
+  .statusbar-dot.off{background:var(--err);box-shadow:0 0 0 3px rgba(192,57,43,.15)}
+  .statusbar-sep{opacity:.5}
+  .statusbar-btn{font:inherit;font-weight:700;font-size:12px;color:var(--purple);background:var(--purple-bg);
+    border:1px solid var(--line);border-radius:20px;padding:5px 12px;cursor:pointer}
+  .statusbar-btn.pending{color:#fff;background:linear-gradient(135deg,var(--purple),var(--purple-mid));
+    border-color:var(--gold-soft)}
 </style>
 </head>
 <body>
 
-<header>
-  <div class="hdr">
-    <div class="logo">VSR</div>
-    <div class="htxt">
-      <h1>VSR GOLD</h1>
-      <p id="pageSubtitle">Daily Sales Record</p>
-    </div>
-    <div class="hstars">★ ★ ★</div>
-  </div>
-  <div style="max-width:820px;margin:0 auto;padding:0;">
-    <div class="nav-tabs">
-      <button class="nav-tab active" onclick="switchPage('dsr',this)">✎ &nbsp;New DSR Entry</button>
-      <button class="nav-tab" onclick="switchPage('update',this)">🔄 &nbsp;Update Payment</button>
-    </div>
-  </div>
-</header>
+<div class="top">
+  <h1>Stock Entry</h1>
+  <p>Enter counter stock. Saved directly to the Stock Google Sheet.</p>
+</div>
 
-<!-- ══════════════════════════════════════════ -->
-<!-- PAGE 1: DSR ENTRY FORM                     -->
-<!-- ══════════════════════════════════════════ -->
-<div class="page active" id="page-dsr">
 <div class="wrap">
-
-  <div class="init-banner" id="initBanner">
-    <span class="spin">⏳</span>
-    <span>Loading employees &amp; products from Google Sheet...</span>
+  <div class="statusbar">
+    <span class="statusbar-dot" id="connDot"></span>
+    <span id="connText">Online</span>
+    <span class="statusbar-sep">·</span>
+    <button type="button" class="statusbar-btn" id="refreshBtn" title="Reload employee/product/counter lists">🔄 Refresh Lists</button>
+    <button type="button" class="statusbar-btn hide" id="syncBtn" title="Send offline-saved entries now">📤 Sync Offline (<span id="pendingCount">0</span>)</button>
   </div>
+  <div class="banner info show" id="loadBanner">Loading employees and product list…</div>
 
-  <!-- Bill Details -->
   <div class="card">
-    <div class="ch">✎ &nbsp;Bill Details</div>
+    <div class="ch">Entry Details</div>
     <div class="cb">
-      <div class="g2 mb14">
+      <div class="mb">
+        <label for="emp">Employee Name <span class="req">★</span></label>
+        <select id="emp"><option value="">-- Select Employee --</option></select>
+      </div>
+      <div class="g2 mb">
         <div>
-          <label>Bill Date <span class="req">★</span></label>
-          <input type="date" id="billDate" />
+          <label for="date">Date <span class="req">★</span></label>
+          <input type="date" id="date">
         </div>
         <div>
-          <label>Customer Name <span class="req">★</span></label>
-          <input type="text" id="custName" placeholder="Customer full name" />
+          <label>Stock Entry Type <span class="req">★</span></label>
+          <div class="tgl" id="tglType">
+            <button type="button" data-v="Opening Stock">Opening</button>
+            <button type="button" data-v="Receiving Stock">Receiving</button>
+          </div>
         </div>
       </div>
       <div class="g2">
         <div>
-          <label>Mobile Number <span class="req">★</span></label>
-          <input type="tel" id="mobNum" placeholder="10-digit number" maxlength="10" oninput="chkMob(this)" />
-          <div class="mob-err" id="mobErr">⚠ WRONG</div>
+          <label>Product From <span class="req">★</span></label>
+          <div class="tgl" id="tglFrom">
+            <button type="button" data-v="Retail" class="on">Retail</button>
+            <button type="button" data-v="Main">Main</button>
+          </div>
         </div>
-        <div>
-          <label>Address <span class="req">★</span></label>
-          <input type="text" id="addr" placeholder="City / Area" />
+        <div id="counterWrap">
+          <label for="counter">Counter Name <span class="req">★</span></label>
+          <select id="counter"><option value="">-- Select Counter --</option></select>
         </div>
       </div>
+      <div class="msg info hide" id="hubNote" style="margin-top:10px">Main = hub stock, so no counter is needed.</div>
     </div>
   </div>
 
-  <!-- Employee -->
-  <div class="card">
-    <div class="ch">◉ &nbsp;Employee</div>
-    <div class="cb">
-      <label>Employee Name <span class="req">★</span></label>
-      <select id="empName">
-        <option value="">⏳ Loading employees...</option>
-      </select>
-    </div>
-  </div>
+  <div id="items"></div>
+  <button class="add" type="button" id="addItem">＋ &nbsp;Add Another Item</button>
 
-  <!-- Payment Status — 3 buttons now -->
-  <div class="pay-status-section">
-    <div class="pay-status-title">💰 &nbsp;Payment Status <span class="req">★</span></div>
-    <div class="pay-tgl" id="payTgl">
-      <button id="btnPurchased" class="on purchased" onclick="setPayStatus('Purchased',this)">✅ Purchased</button>
-      <button id="btnAdvance"                        onclick="setPayStatus('Advance',this)">⏳ Advance</button>
-      <button id="btnOrder"                          onclick="setPayStatus('Order Placed',this)">📦 Order Placed</button>
-    </div>
-    <input type="hidden" id="paymentStatus" value="Purchased" />
-    <div style="margin-top:8px;font-size:11px;color:var(--muted);" id="payStatusNote">Customer has paid in full.</div>
-  </div>
+  <div class="banner" id="resultBanner"></div>
 
-  <div id="entriesList"></div>
-  <button class="add-entry-btn" onclick="addEntry()">＋ &nbsp; Add Another Item</button>
-
-  <div class="spacer"></div>
-  <div class="sbar">
-    <button class="sbtn" id="subBtn" onclick="doSubmit()">★ &nbsp; Submit DSR &nbsp; ★</button>
-  </div>
-</div>
-</div><!-- end page-dsr -->
-
-<!-- ══════════════════════════════════════════ -->
-<!-- PAGE 2: UPDATE PAYMENT STATUS              -->
-<!-- ══════════════════════════════════════════ -->
-<div class="page" id="page-update">
-<div class="wrap">
-
-  <div class="howto">
-    <div class="howto-title">📋 How to Update Payment Status</div>
-    <ol>
-      <li>Use this page when a customer comes and makes full payment</li>
-      <li>Enter the DSR ID and click Search (e.g. VSR-20260401-003)</li>
-      <li>Verify the entry details and select the new payment status</li>
-      <li>Click Confirm — the Sheet will be updated accordingly</li>
-    </ol>
-  </div>
-
-  <!-- DSR Search -->
-  <div class="upd-section">
-    <div class="upd-title">🔍 &nbsp;Search DSR Entry</div>
-    <div class="dsr-search-row">
-      <div style="flex:1;">
-        <label>DSR ID <span class="req">★</span></label>
-        <input type="text" id="searchDsrId" placeholder="e.g. VSR-20260401-003" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')doSearch()" />
-      </div>
-      <div>
-        <label>&nbsp;</label>
-        <button class="search-btn" id="searchBtn" onclick="doSearch()">🔍 &nbsp;Search</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- No result message -->
-  <div class="no-result-msg" id="noResultMsg">⚠ DSR ID not found. Please check and try again.</div>
-
-  <!-- Entry Details + Status Update (shown after search) -->
-  <div id="updEntryCard" style="display:none;">
-
-    <div class="entry-card">
-      <div class="ec-header">
-        <div>
-          <div style="font-size:9px;font-weight:700;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:3px;">DSR ID</div>
-          <div class="ec-dsr" id="ecDsrId">—</div>
-        </div>
-        <div id="ecCurrentBadge"></div>
-      </div>
-      <div class="ec-body" id="ecBody"></div>
-    </div>
-
-    <!-- Status Update Box -->
-    <div class="status-update-box">
-      <div class="sut-label">🔄 Update Payment Status</div>
-
-      <div class="pay-tgl4" id="updTgl">
-        <button id="ut-purchased" onclick="setUpdStatus('Purchased',this)"    class="t-purchased">✅ Purchased</button>
-        <button id="ut-advance"   onclick="setUpdStatus('Advance',this)"      class="t-advance">⏳ Advance</button>
-        <button id="ut-order"     onclick="setUpdStatus('Order Placed',this)" class="t-order">📦 Order Placed</button>
-        <button id="ut-other"     onclick="setUpdStatus('Other',this)"        class="t-other">✏️ Other</button>
-      </div>
-      <input type="hidden" id="updStatus" value="" />
-
-      <div class="other-inp-wrap" id="otherInpWrap">
-        <label>Specify Status</label>
-        <input type="text" id="otherStatusVal" placeholder="e.g. Returned, Exchange, Partial..." />
-      </div>
-
-      <div style="font-size:11px;color:var(--muted);margin-bottom:12px;" id="updStatusNote"></div>
-
-      <button class="upd-confirm-btn" id="updConfirmBtn" onclick="doUpdateStatus()">✓ &nbsp; Confirm Status Update</button>
-
-      <div class="upd-result" id="updResult">
-        <div class="upd-result-icon" id="updResultIcon">✓</div>
-        <div class="upd-result-title" id="updResultTitle">Updated!</div>
-        <div class="upd-result-msg" id="updResultMsg"></div>
-        <button class="upd-again-btn" onclick="resetUpdatePage()">🔄 &nbsp;Update Another DSR</button>
-      </div>
-    </div>
-
-  </div><!-- end updEntryCard -->
-
-</div>
-</div><!-- end page-update -->
-
-<div class="toast" id="toast"></div>
-
-<!-- DSR Submit success screen -->
-<div class="success-screen" id="successScreen">
-  <div class="ss-icon">✓</div>
-  <div class="ss-title">DSR Submitted!</div>
-  <div class="ss-id" id="ssId"></div>
-  <div id="ssStatusBadge"></div>
-  <div class="ss-sub" id="ssSub"></div>
-  <div style="height:16px;"></div>
-  <button class="ss-btn" onclick="closeSuccess()">＋ New Entry</button>
+  <button class="save" type="button" id="saveBtn">★ &nbsp;Save Stock &nbsp;★</button>
+  <button class="clear" type="button" id="clearBtn">Clear Items</button>
 </div>
 
 <script>
-// ══════════════════════════════════════════════════════════════
-// ▶▶ STEP 1: Update GAS Deployed Web App URL here ◀◀
-// ══════════════════════════════════════════════════════════════
-var GAS_URL = "https://script.google.com/macros/s/AKfycbyQYlRVmQGIA1YfiExsNUyoSFUpWA4iBnhI0UhAdGzbi7V3lSYtV1FBk_85mVqvo0dQ/exec";
-// ══════════════════════════════════════════════════════════════
+/* ================= SETTINGS ================= */
+// 1) Stock backend Web App URL (new Google account) — ends with /exec
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyZR0GpuTCgy2ErrFO4DOyBaN2USByivHUxN1QOeR67mkRM0l_pcmnodBt41KF29Wi0/exec";
+// 2) DSR Web App URL — employees + product lists are read from here (same one the portal uses)
+const DSR_URL = "https://script.google.com/macros/s/AKfycbw19KcGbJEee6EK4YnznC0xa9inkJl-GOPhywR8xzyzIPY0-SqBHFSEktS_z4tdLZKA/exec";
+const TUNCHS = ['750','916','999','585','375'];
+/* ============================================ */
 
-var GOLD_PRODS   = [];
-var SILVER_PRODS = [];
-var TUNCHS       = ["750","916","999"];
-var eSeq         = 0;
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LISTS = { gold:[], diamond:[], length:[], bangleSize:[], ringSize:[], diamondClarity:[], diamondColor:[], goldFlags:{}, diaFlags:{}, counterDesigns:{} };
+let counters = [];
+let seq = 0;
+let submitToken = Math.random().toString(36).slice(2,8);   // renewed after every successful save
+const LS_LISTS = 'vsrStockLists_v1', LS_META = 'vsrStockMeta_v1', LS_EMP = 'vsrStockLastEmp';
+const LS_QUEUE = 'vsrStockOfflineQueue_v1';   // items saved while offline / when the server didn't respond
 
-// ── PAGE SWITCH ──
-function switchPage(page, btn) {
-  document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
-  document.querySelectorAll('.nav-tab').forEach(function(t){ t.classList.remove('active'); });
-  document.getElementById('page-'+page).classList.add('active');
-  btn.classList.add('active');
-  var subtitles = { dsr: 'Daily Sales Record', update: 'Update Payment Status' };
-  document.getElementById('pageSubtitle').textContent = subtitles[page] || '';
+function hashStr(str){ let h=5381; for(let i=0;i<str.length;i++){ h=((h<<5)+h+str.charCodeAt(i))|0; } return (h>>>0).toString(36)+str.length.toString(36); }
+function normTag(s){ return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function hasSep(s){ return /[^A-Za-z0-9]/.test(String(s||'').trim()); }
+// Product Name / Design are names, so a custom-typed value is normalized the same way the server already
+// normalizes its own product list — "gold chain" and "GOLD CHAIN" both become "Gold Chain".
+function titleCase(s){ return String(s||'').trim().replace(/\s+/g,' ').toLowerCase().replace(/(^|[\s/-])([a-z])/g,(m,sep,c)=>sep+c.toUpperCase()); }
+function toYMD(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fetchT(url, opts, ms){
+  const c = new AbortController(); const t = setTimeout(()=>c.abort(), ms||20000);
+  return fetch(url, Object.assign({}, opts, {signal:c.signal})).finally(()=>clearTimeout(t));
 }
 
-// ── LOAD EMPLOYEES + PRODUCTS ──
-function loadInitialData() {
-  fetch(GAS_URL + "?action=getData")
-    .then(function(res){ return res.json(); })
-    .then(function(data){
-      var empSel = document.getElementById("empName");
-      if (data.employees && data.employees.length) {
-        empSel.innerHTML = '<option value="">-- Select Employee --</option>' +
-          data.employees.map(function(n){ return '<option value="'+(n.name||n)+'">'+(n.name||n)+'</option>'; }).join('');
-      } else {
-        empSel.innerHTML = '<option value="">-- No employees found --</option>';
-      }
-      if (data.products) {
-        GOLD_PRODS   = data.products.gold   || [];
-        SILVER_PRODS = data.products.silver || [];
-      }
-      document.getElementById("entriesList").querySelectorAll(".entry").forEach(function(block){
-        var eid = block.id.replace("entry-","");
-        refreshProductDropdowns(eid);
-      });
-      document.getElementById("initBanner").classList.add("hide");
-    })
-    .catch(function(err){
-      document.getElementById("initBanner").innerHTML = '⚠ Could not load data — check GAS_URL. Error: ' + err;
-      document.getElementById("empName").innerHTML = '<option value="">-- Enter GAS URL --</option>';
-    });
+/* ---------- offline queue (same pattern as the portal's DSR offline queue) ---------- */
+function getQueue(){ try{ return JSON.parse(localStorage.getItem(LS_QUEUE)||'[]'); }catch(e){ return []; } }
+function saveQueue(q){ try{ localStorage.setItem(LS_QUEUE, JSON.stringify(q)); return true; }catch(e){ return false; } }
+
+function updateConnStatus(){
+  const online = navigator.onLine;
+  const dot = $('connDot'), txt = $('connText'), syncBtn = $('syncBtn'), cnt = $('pendingCount');
+  dot.classList.toggle('off', !online);
+  txt.textContent = online ? 'Online' : 'Offline';
+  const pending = getQueue().length;
+  cnt.textContent = pending;
+  syncBtn.classList.toggle('hide', pending===0);
+  syncBtn.classList.toggle('pending', pending>0 && online);
+  syncBtn.title = online ? 'Send offline-saved entries now' : 'Will auto-sync once back online';
 }
 
-function refreshProductDropdowns(eid) {
-  var gOpts = '<option value="">-- Select --</option>' + GOLD_PRODS.map(function(p){ return '<option>'+p+'</option>'; }).join('');
-  var sOpts = '<option value="">-- Select --</option>' + SILVER_PRODS.map(function(s){ return '<option>'+s+'</option>'; }).join('');
-  var gnEl = document.getElementById("pn-"+eid);
-  var snEl = document.getElementById("sn-"+eid);
-  if (gnEl) gnEl.innerHTML = gOpts;
-  if (snEl) snEl.innerHTML = sOpts;
+// Saves this submission on the device instead of the server, for a genuine network problem (offline, or
+// the server didn't answer in time) — never for a real rejection (duplicate tag, sold tag, validation
+// error), which always needs the person's attention right away instead of being queued silently.
+function queueOffline(payload, header){
+  const q = getQueue();
+  q.push({ payload, savedAt: Date.now() });
+  const saved = saveQueue(q);
+  updateConnStatus();
+  if(!saved){
+    showBanner('err','Could not save offline — this device\'s storage is full. Please connect to the internet and tap Save again now, or Sync older offline items first.');
+    return false;
+  }
+  submitToken = Math.random().toString(36).slice(2,8);
+  $('items').innerHTML=''; addItem();
+  showBanner('info','📴 No response from server — saved on this device instead (' + header.entryType + ', ' + (header.productFrom==='Main'?'Main Hub':header.counter) + '). It will sync automatically once online, or tap Sync Offline above.');
+  return true;
 }
 
-// ── INIT ──
-document.addEventListener('DOMContentLoaded', function() {
-  document.getElementById('billDate').value = new Date().toISOString().split('T')[0];
-  addEntry();
-  loadInitialData();
+let __stockFlushInFlight = false;
+async function flushOfflineQueue(silent){
+  if(!navigator.onLine) return;
+  if(__stockFlushInFlight) return;
+  __stockFlushInFlight = true;
+  try{
+    const q = getQueue();
+    if(!q.length){ updateConnStatus(); return; }
+    saveQueue([]);   // claim before sending, so a second trigger (online event + Sync tap) can't resend the same items
+    const remaining = [];
+    let synced = 0;
+    for(const item of q){
+      try{
+        const res = await fetchT(SCRIPT_URL, {method:'POST', body: JSON.stringify(item.payload)}, 60000).then(r=>r.json());
+        if(res && res.ok) synced++;
+        else remaining.push(item);
+      }catch(e){ remaining.push(item); }
+    }
+    const stillQueued = getQueue();
+    saveQueue(remaining.concat(stillQueued));
+    updateConnStatus();
+    if(synced>0) showBanner('ok', '✅ ' + synced + ' offline item(s) synced.' + (remaining.length? ' ' + remaining.length + ' still pending (will retry).' : ''));
+    else if(remaining.length && !silent) showBanner('err', remaining.length + ' offline item(s) could not sync yet — will retry automatically.');
+  } finally {
+    __stockFlushInFlight = false;
+  }
+}
+window.addEventListener('online', ()=>{ updateConnStatus(); flushOfflineQueue(); });
+window.addEventListener('offline', updateConnStatus);
+$('syncBtn').addEventListener('click', ()=>{
+  if(!navigator.onLine){ showBanner('err','Still offline — connect to the internet first.'); return; }
+  flushOfflineQueue(false);
+});
+$('refreshBtn').addEventListener('click', ()=>{
+  $('loadBanner').className='banner info show'; $('loadBanner').textContent='Refreshing employee / product / counter lists…';
+  loadData();
 });
 
-// ── PAYMENT STATUS TOGGLE (3-button DSR form) ──
-function setPayStatus(val, btn) {
-  document.getElementById('payTgl').querySelectorAll('button').forEach(function(b){
-    b.classList.remove('on','advance','purchased','order');
+/* ---------- toggles ---------- */
+function bindToggle(el, onChange){
+  el.addEventListener('click', ev=>{
+    const b = ev.target.closest('button'); if(!b) return;
+    el.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    if(onChange) onChange(b.dataset.v);
   });
-  var cls = val === 'Advance' ? 'advance' : val === 'Order Placed' ? 'order' : 'purchased';
-  btn.classList.add('on', cls);
-  document.getElementById('paymentStatus').value = val;
-  var notes = {
-    'Purchased':    'Customer has paid in full.',
-    'Advance':      '⚠ Advance paid — follow-up required next day.',
-    'Order Placed': '📦 Item not in stock — order placed, customer will collect later.'
-  };
-  document.getElementById('payStatusNote').textContent = notes[val] || '';
+}
+function togVal(el){ const b = el.querySelector('button.on'); return b ? b.dataset.v : ''; }
+
+/* ---------- header ---------- */
+$('date').value = toYMD(new Date());
+bindToggle($('tglType'));
+bindToggle($('tglFrom'), v=>{
+  $('counterWrap').classList.toggle('hide', v==='Main');
+  $('hubNote').classList.toggle('hide', v!=='Main');
+  refreshAllDesigns();
+});
+$('counter').addEventListener('change', refreshAllDesigns);
+$('emp').addEventListener('change', ()=>{ try{ localStorage.setItem(LS_EMP, $('emp').value); }catch(e){} });
+
+function fillEmployees(list){
+  const sel = $('emp'); const prev = sel.value || (function(){ try{return localStorage.getItem(LS_EMP)||'';}catch(e){return '';} })();
+  sel.innerHTML = '<option value="">-- Select Employee --</option>' +
+    list.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(e=>`<option>${esc(e.name)}</option>`).join('');
+  if(prev) sel.value = prev;
+}
+function fillCounters(list){
+  counters = list || [];
+  const sel = $('counter'); const prev = sel.value;
+  sel.innerHTML = '<option value="">-- Select Counter --</option>' + counters.map(c=>`<option>${esc(c)}</option>`).join('');
+  if(prev) sel.value = prev;
 }
 
-// ── MOBILE VALIDATION ──
-function chkMob(inp) {
-  var v = inp.value.replace(/\D/g,'');
-  inp.value = v;
-  var e = document.getElementById('mobErr');
-  if (v.length > 0 && v.length < 10) {
-    inp.classList.add('err-inp');
-    e.textContent = '⚠ WRONG — '+v.length+'/10 digits';
-    e.classList.add('show');
-  } else {
-    inp.classList.remove('err-inp');
-    e.classList.remove('show');
+/* ---------- data loading (cache first, then network) ---------- */
+function applyLists(p){
+  LISTS.gold = p.gold||[]; LISTS.diamond = p.diamond||[];
+  LISTS.length = p.length||[]; LISTS.bangleSize = p.bangleSize||[]; LISTS.ringSize = p.ringSize||[];
+  LISTS.diamondClarity = p.diamondClarity||[]; LISTS.diamondColor = p.diamondColor||[];
+  LISTS.goldFlags = p.goldFlags||{}; LISTS.diaFlags = p.diaFlags||{};
+  LISTS.counterDesigns = p.counterDesigns||{};
+  document.querySelectorAll('.item').forEach(refreshItemLists);
+}
+async function loadData(){
+  let hadCache = false;
+  try{
+    const c = JSON.parse(localStorage.getItem(LS_LISTS)||'null');
+    if(c){ fillEmployees(c.employees||[]); applyLists(c.products||{}); hadCache = true; }
+    const m = JSON.parse(localStorage.getItem(LS_META)||'null');
+    if(m) fillCounters(m.counters);
+  }catch(e){}
+  const banner = $('loadBanner');
+  // v-fix: DSR (employees/products) and Stock (counters) are fetched independently now — earlier both were
+  // bundled in one Promise.all, so if EITHER call was slow/failed, counters silently kept showing the old
+  // cached list (e.g. a newly added counter never appeared) even though the Stock call itself had succeeded.
+  const dsrPromise = fetchT(DSR_URL+'?action=getData', {}, 25000).then(r=>r.json())
+    .then(d=>{
+      fillEmployees(d.employees||[]);
+      applyLists(d.products||{});
+      try{ localStorage.setItem(LS_LISTS, JSON.stringify({employees:d.employees||[], products:d.products||{}})); }catch(e){}
+      return true;
+    }).catch(()=>false);
+  const metaPromise = SCRIPT_URL.indexOf('PASTE')===-1
+    ? fetchT(SCRIPT_URL+'?action=meta', {}, 25000).then(r=>r.json())
+        .then(m=>{
+          if(m && m.ok){ fillCounters(m.counters); try{ localStorage.setItem(LS_META, JSON.stringify({counters:m.counters})); }catch(e){} }
+          return !!(m && m.ok);
+        }).catch(()=>false)
+    : Promise.resolve(false);
+  const [dsrOk, metaOk] = await Promise.all([dsrPromise, metaPromise]);
+  if(SCRIPT_URL.indexOf('PASTE')!==-1){ showBanner('err','Set SCRIPT_URL in this file (stock Web App URL) before saving.'); }
+  else if(dsrOk && metaOk){ banner.classList.remove('show'); }
+  else if(hadCache){ banner.textContent = 'Offline or slow connection — showing saved lists from last time.'; setTimeout(()=>banner.classList.remove('show'),3000); }
+  else { banner.className='banner err show'; banner.textContent = 'Could not load employees / product list. Check internet and reload.'; }
+}
+
+/* ---------- items ---------- */
+function optList(arr, other){
+  return '<option value="">-- Select --</option>' + arr.map(x=>`<option>${esc(x)}</option>`).join('') +
+    (other ? '<option value="__other">Other (type manually)</option>' : '');
+}
+function addItem(){
+  seq++;
+  const n = seq;
+  const div = document.createElement('div');
+  div.className = 'item'; div.dataset.n = n;
+  div.innerHTML = `
+    <div class="item-hd"><span class="ttl">Item</span><button type="button" class="rm">✕ Remove</button></div>
+    <div class="itemerr hide"></div>
+    <div class="item-body">
+      <div class="g2 mb">
+        <div><label>Type <span class="req">★</span></label>
+          <div class="tgl" data-r="type"><button type="button" data-v="Gold" class="on">Gold</button><button type="button" data-v="Diamond">Diamond</button></div></div>
+        <div><label>Tag Status</label>
+          <div class="tgl" data-r="tagst"><button type="button" data-v="Tag" class="on">Tag</button><button type="button" data-v="Non Tag">Non Tag</button></div></div>
+      </div>
+
+      <div class="mb" data-r="tagWrap">
+        <label>Tag No <span class="req">★</span></label>
+        <input type="text" data-k="tagNo" placeholder="e.g. BOM2154" autocomplete="off" autocapitalize="characters" style="text-transform:uppercase">
+        <div class="msg info" data-r="tagMsg"></div>
+        <label class="retconf hide" data-r="retWrap"><input type="checkbox" data-r="retChk"><span>Yes — this tag came back from a sale. Add it to stock again (Return).</span></label>
+      </div>
+      <div class="mb hide" data-r="qtyWrap">
+        <label>Quantity (pcs) <span class="req">★</span></label>
+        <input type="number" data-k="qty" inputmode="numeric" min="1" step="1" value="1">
+      </div>
+
+      <div class="mb">
+        <label>Product Name <span class="req">★</span></label>
+        <select data-k="productName"></select>
+        <input type="text" data-k="productCustom" class="hide" placeholder="Enter product name" style="margin-top:8px">
+      </div>
+
+      <div class="g3 mb hide" data-r="sizeRow">
+        <div data-r="bangleWrap" class="hide"><label>Bangle Size <span class="req">★</span></label>
+          <select data-k="bangleSize"></select><input type="text" data-k="bangleSizeCustom" class="hide" placeholder="Type size" style="margin-top:8px"></div>
+        <div data-r="ringWrap" class="hide"><label>Ring Size <span class="req">★</span></label>
+          <select data-k="ringSize"></select><input type="text" data-k="ringSizeCustom" class="hide" placeholder="Type size" style="margin-top:8px"></div>
+        <div data-r="lengthWrap" class="hide"><label>Length <span class="req">★</span></label>
+          <select data-k="length"></select><input type="text" data-k="lengthCustom" class="hide" placeholder="Type length" style="margin-top:8px"></div>
+      </div>
+
+      <div data-r="goldBox">
+        <div class="g3 mb">
+          <div><label>Design <span class="req">★</span></label><select data-k="design"></select>
+            <input type="text" data-k="designCustom" class="hide" placeholder="Enter design name" style="margin-top:8px"></div>
+          <div><label>Tunch <span class="req">★</span></label>
+            <select data-k="tunch"><option value="">-- Select --</option>${TUNCHS.map(t=>`<option>${t}</option>`).join('')}</select></div>
+          <div><label data-r="wtLbl">Weight (gm) <span class="req">★</span></label><input type="text" inputmode="decimal" data-k="weight" placeholder="e.g. 21.37"></div>
+        </div>
+      </div>
+
+      <div class="hide" data-r="diaBox">
+        <div class="g2 mb">
+          <div><label>Gross Wt (gm) <span class="req">★</span></label><input type="text" inputmode="decimal" data-k="gross" placeholder="e.g. 6.10"></div>
+          <div><label>Net Wt (gm) <span class="req">★</span></label><input type="text" inputmode="decimal" data-k="net" placeholder="e.g. 5.20"></div>
+        </div>
+        <div class="g2 mb">
+          <div><label>Gold Tunch</label><select data-k="diaTunch"><option value="">-- Select --</option>${TUNCHS.map(t=>`<option>${t}</option>`).join('')}</select></div>
+          <div><label>Carat</label><input type="text" data-k="carat" placeholder="e.g. 0.50ct"></div>
+        </div>
+        <div class="g2 mb">
+          <div><label>Clarity</label><select data-k="clarity"></select></div>
+          <div><label>Color</label><select data-k="color"></select></div>
+        </div>
+        <div class="mb"><label>Certificate No</label><input type="text" data-k="certNo" placeholder="e.g. GIA-1234567"></div>
+      </div>
+
+      <div>
+        <label>Photo</label>
+        <div class="phwrap">
+          <div class="phlbl"><span>📷</span><span data-r="phTxt">Upload Photo</span></div>
+          <input type="file" accept="image/*" data-r="file">
+        </div>
+        <img class="phprev" data-r="prev" alt="">
+        <button type="button" class="phrm" data-r="phRm">✕ Remove Photo</button>
+      </div>
+    </div>`;
+  $('items').appendChild(div);
+  wireItem(div);
+  refreshItemLists(div);
+  renumber();
+  return div;
+}
+const R = (b, r) => b.querySelector(`[data-r="${r}"]`);
+const K = (b, k) => b.querySelector(`[data-k="${k}"]`);
+
+function wireItem(b){
+  bindToggle(R(b,'type'), v=>{
+    R(b,'goldBox').classList.toggle('hide', v!=='Gold');
+    R(b,'diaBox').classList.toggle('hide', v!=='Diamond');
+    refreshItemLists(b);
+    updateSizeRows(b);
+  });
+  bindToggle(R(b,'tagst'), v=>{
+    R(b,'tagWrap').classList.toggle('hide', v!=='Tag');
+    R(b,'qtyWrap').classList.toggle('hide', v==='Tag');
+    R(b,'wtLbl').innerHTML = (v==='Tag' ? 'Weight (gm)' : 'Total weight (gm)') + ' <span class="req">★</span>';
+    if(v!=='Tag'){ setTagMsg(b,'info',''); R(b,'retWrap').classList.add('hide'); }
+  });
+  b.querySelector('.rm').addEventListener('click', ()=>{ b.remove(); renumber(); });
+  K(b,'productName').addEventListener('change', ()=>{
+    K(b,'productCustom').classList.toggle('hide', K(b,'productName').value!=='__other');
+    updateSizeRows(b);
+  });
+  K(b,'productCustom').addEventListener('input', ()=>updateSizeRows(b));
+  ['bangleSize','ringSize','length','design'].forEach(k=>{
+    K(b,k).addEventListener('change', ()=>K(b,k+'Custom').classList.toggle('hide', K(b,k).value!=='__other'));
+  });
+  const tag = K(b,'tagNo');
+  tag.addEventListener('input', ()=>{
+    b._lk = (b._lk||0)+1; R(b,'retWrap').classList.add('hide'); b._tagState = '';
+    tag.classList.remove('bad');
+    if(hasSep(tag.value)){ setTagMsg(b,'err','Space, - or / not allowed. Enter like BOM2154.'); tag.classList.add('bad'); b._tagState='sep'; }
+    else setTagMsg(b,'info','');
+  });
+  tag.addEventListener('change', ()=>checkTag(b));
+  tag.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); tag.blur(); } });
+  // photo
+  R(b,'file').addEventListener('change', ev=>loadPhoto(b, ev.target));
+  R(b,'phRm').addEventListener('click', ()=>clearPhoto(b));
+}
+
+function renumber(){
+  const all = document.querySelectorAll('.item');
+  all.forEach((b,i)=>{
+    b.querySelector('.ttl').textContent = 'Item Entry ' + (i+1);
+    b.querySelector('.rm').style.visibility = all.length>1 ? 'visible' : 'hidden';
+  });
+}
+function refreshItemLists(b){
+  const type = togVal(R(b,'type'));
+  const pn = K(b,'productName'); const prev = pn.value;
+  pn.innerHTML = optList(type==='Diamond' ? LISTS.diamond : LISTS.gold, true);
+  if(prev) pn.value = prev;
+  const keep = (sel, html)=>{ const p = sel.value; sel.innerHTML = html; if(p) sel.value = p; };
+  keep(K(b,'bangleSize'), optList(LISTS.bangleSize, true));
+  keep(K(b,'ringSize'),   optList(LISTS.ringSize, true));
+  keep(K(b,'length'),     optList(LISTS.length, true));
+  keep(K(b,'clarity'),    optList(LISTS.diamondClarity, false));
+  keep(K(b,'color'),      optList(LISTS.diamondColor, false));
+  refreshItemDesign(b);
+}
+// Design options depend on the COUNTER picked at the top (not per-item, not per-product) — every Gold
+// item in this batch shares the same counter, so the same design list. Main (hub, no counter) shows every
+// counter's designs combined, since hub stock isn't tied to one counter yet.
+function currentDesignList(){
+  if(togVal($('tglFrom')) !== 'Main'){
+    const c = $('counter').value;
+    return c ? (LISTS.counterDesigns[c]||[]) : [];
+  }
+  const seen = {}, out = [];
+  Object.keys(LISTS.counterDesigns).forEach(c=>(LISTS.counterDesigns[c]||[]).forEach(d=>{ if(!seen[d]){ seen[d]=1; out.push(d); } }));
+  return out;
+}
+function refreshItemDesign(b){
+  const sel = K(b,'design'); if(!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = optList(currentDesignList(), true);
+  if(prev) sel.value = prev;
+  K(b,'designCustom').classList.toggle('hide', sel.value!=='__other');
+}
+function refreshAllDesigns(){ document.querySelectorAll('.item').forEach(refreshItemDesign); }
+function productNameOf(b){
+  const v = K(b,'productName').value;
+  return v==='__other' ? titleCase(K(b,'productCustom').value) : v;
+}
+// Looks up whether the selected product needs Length / Bangle Size / Ring Size — read straight from the
+// Products sheet (goldFlags / diaFlags, keyed by exact product name), never guessed from the name text.
+// A custom-typed ("Other") product name has no row in the sheet, so it never shows these extra fields.
+function sizeFlagsOf(b){
+  const type = togVal(R(b,'type'));
+  const table = type==='Diamond' ? LISTS.diaFlags : LISTS.goldFlags;
+  const sel = K(b,'productName').value;
+  return (sel && sel!=='__other' && table[sel]) ? table[sel] : {length:false, bangle:false, ring:false};
+}
+function updateSizeRows(b){
+  const f = sizeFlagsOf(b);
+  R(b,'bangleWrap').classList.toggle('hide', !f.bangle);
+  R(b,'ringWrap').classList.toggle('hide', !f.ring);
+  R(b,'lengthWrap').classList.toggle('hide', !f.length);
+  R(b,'sizeRow').classList.toggle('hide', !(f.bangle||f.ring||f.length));
+}
+function pickVal(b, k){
+  const s = K(b,k); if(!s) return '';
+  return s.value==='__other' ? K(b,k+'Custom').value.trim() : s.value;
+}
+
+/* ---------- tag check against stock ---------- */
+function setTagMsg(b, cls, txt){ const m = R(b,'tagMsg'); m.className = 'msg ' + cls; m.textContent = txt; }
+function tagUsedElsewhere(b, tagN){
+  return [...document.querySelectorAll('.item')].some(o=>o!==b && togVal(R(o,'tagst'))==='Tag' && normTag(K(o,'tagNo').value)===tagN);
+}
+async function checkTag(b){
+  const inp = K(b,'tagNo'); const raw = inp.value.trim();
+  R(b,'retWrap').classList.add('hide'); R(b,'retChk').checked = false; b._tagState = '';
+  if(!raw){ setTagMsg(b,'info',''); return; }
+  if(hasSep(raw)){ setTagMsg(b,'err','Space, - or / not allowed. Enter like BOM2154.'); inp.classList.add('bad'); b._tagState='sep'; return; }
+  inp.value = raw.toUpperCase(); inp.classList.remove('bad');
+  const tagN = normTag(raw);
+  if(tagUsedElsewhere(b, tagN)){ setTagMsg(b,'err','Duplicate: this tag is already entered in another item below/above.'); inp.classList.add('bad'); b._tagState='dup'; return; }
+  if(SCRIPT_URL.indexOf('PASTE')!==-1){ setTagMsg(b,'info',''); return; }
+  const my = b._lk = (b._lk||0)+1;
+  setTagMsg(b,'info','Checking stock…');
+  try{
+    const r = await fetchT(SCRIPT_URL+'?action=lookup&tag='+encodeURIComponent(tagN), {}, 20000).then(x=>x.json());
+    if(my !== b._lk) return;
+    if(r.status==='instock'){
+      setTagMsg(b,'err','Duplicate: already in stock' + (r.item && r.item.counter ? ' ('+r.item.counter+')' : '') + '.');
+      inp.classList.add('bad'); b._tagState='dup';
+    } else if(r.status==='sold'){
+      setTagMsg(b,'warn','Sold in DSR ' + (r.sold.dsrId||'') + (r.sold.soldDate ? ' on ' + r.sold.soldDate : '') + '.');
+      R(b,'retWrap').classList.remove('hide'); b._tagState='sold';
+    } else {
+      setTagMsg(b,'ok','New tag — OK.');
+    }
+  }catch(e){
+    if(my === b._lk) setTagMsg(b,'info','Could not check stock right now. It will be checked again on save.');
   }
 }
 
-// ── PHOTO COMPRESS + PREVIEW ──
-function loadPhoto(inp, hidId, tidId, pidId, szId) {
-  var f = inp.files[0];
-  if (!f) return;
-  var tEl = document.getElementById(tidId);
-  if (tEl) { tEl.textContent = 'Processing...'; tEl.className = 'pht'; }
-  var reader = new FileReader();
-  reader.onload = function(ev) {
-    var img = new Image();
-    img.onload = function() {
-      var canvas = document.createElement('canvas');
-      var MAX=1400, w=img.width, h=img.height;
-      if (w>MAX){ h=Math.round(h*MAX/w); w=MAX; }
-      if (h>MAX){ w=Math.round(w*MAX/h); h=MAX; }
-      canvas.width=w; canvas.height=h;
-      canvas.getContext('2d').drawImage(img,0,0,w,h);
-      var b64 = canvas.toDataURL('image/jpeg',0.82);
-      document.getElementById(hidId).value = b64;
-      var sizeKB = Math.round(b64.length*0.75/1024);
-      if (tEl){ tEl.textContent=f.name; tEl.className='phn'; }
-      var szEl=document.getElementById(szId);
-      if (szEl) szEl.textContent = sizeKB>1024?(sizeKB/1024).toFixed(1)+' MB':sizeKB+' KB';
-      var pv=document.getElementById(pidId);
-      if (pv){ pv.src=b64; pv.classList.add('show'); }
+/* ---------- photo ---------- */
+function loadPhoto(b, inp){
+  const f = inp.files[0]; if(!f) return;
+  R(b,'phTxt').textContent = 'Processing…';
+  const rd = new FileReader();
+  rd.onload = ev=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const M = 800; let w = img.width, h = img.height;
+      if(w>M){ h = Math.round(h*M/w); w = M; } if(h>M){ w = Math.round(w*M/h); h = M; }
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      let q = 0.65, b64 = cv.toDataURL('image/jpeg', q);
+      let kb = Math.round(b64.length*0.75/1024);
+      if(kb>200){ q = Math.max(0.3, q*(200/kb)*0.9); b64 = cv.toDataURL('image/jpeg', q); kb = Math.round(b64.length*0.75/1024); }
+      b._photo = b64;
+      R(b,'phTxt').textContent = f.name + ' (' + kb + ' KB)';
+      const pv = R(b,'prev'); pv.src = b64; pv.classList.add('show');
+      R(b,'phRm').style.display = 'inline-block';
     };
     img.src = ev.target.result;
   };
-  reader.readAsDataURL(f);
+  rd.readAsDataURL(f);
+}
+function clearPhoto(b){
+  b._photo = ''; R(b,'file').value = ''; R(b,'phTxt').textContent = 'Upload Photo';
+  const pv = R(b,'prev'); pv.src=''; pv.classList.remove('show'); R(b,'phRm').style.display = 'none';
 }
 
-// ── TOGGLE BUTTONS ──
-function setTgl(grpId, hidId, val, btn) {
-  document.getElementById(grpId).querySelectorAll('button').forEach(function(b){ b.classList.remove('on'); });
-  btn.classList.add('on');
-  document.getElementById(hidId).value = val;
-  if (hidId.indexOf('typ-') === 0) {
-    var eid = hidId.replace('typ-','');
-    var silver = (val === 'Silver');
-    document.getElementById('goldP-'+eid).style.display = silver ? 'none' : 'block';
-    document.getElementById('silvP-'+eid).style.display = silver ? 'block' : 'none';
-  }
+/* ---------- collect + save ---------- */
+function showBanner(cls, txt){
+  const el = $('resultBanner'); el.className = 'banner show ' + cls; el.textContent = txt;
+  el.scrollIntoView({block:'nearest', behavior:'smooth'});
 }
-
-function toggleOtherGold(eid) {
-  document.getElementById('pnOther-'+eid).style.display =
-    document.getElementById('pn-'+eid).value==='Other' ? 'block' : 'none';
+function itemError(b, msg){
+  const e = b.querySelector('.itemerr'); b.classList.toggle('err', !!msg);
+  e.textContent = msg||''; e.classList.toggle('hide', !msg);
 }
+function clearItemErrors(){ document.querySelectorAll('.item').forEach(b=>itemError(b,'')); }
 
-function toggleOtherSilver(eid) {
-  document.getElementById('snOther-'+eid).style.display =
-    document.getElementById('sn-'+eid).value==='Other' ? 'block' : 'none';
-}
-
-// ── PHOTO WIDGET ──
-function photoWidget(eid, pfx) {
-  var hid=pfx+'hh-'+eid, tid=pfx+'ht-'+eid, pid=pfx+'hp-'+eid, fid=pfx+'hf-'+eid, sid=pfx+'hs-'+eid;
-  return '<div class="phwrap">'+
-    '<label class="phlbl" for="'+fid+'">'+
-    '<span class="phi">📷</span>'+
-    '<span id="'+tid+'" class="pht">Upload Photo</span>'+
-    '</label>'+
-    '<input type="file" id="'+fid+'" accept="image/*" '+
-    'onchange="loadPhoto(this,\''+hid+'\',\''+tid+'\',\''+pid+'\',\''+sid+'\')" />'+
-    '<input type="hidden" id="'+hid+'" />'+
-    '<div id="'+sid+'" class="ph-size"></div>'+
-    '<img id="'+pid+'" class="phprev" />'+
-    '</div>';
-}
-
-// ── ADD ENTRY ──
-function addEntry() {
-  eSeq++;
-  var eid  = eSeq;
-  var list = document.getElementById('entriesList');
-  var num  = list.querySelectorAll('.entry').length + 1;
-
-  var gOpts = '<option value="">-- Select --</option>'+GOLD_PRODS.map(function(p){ return '<option>'+p+'</option>'; }).join('');
-  var tOpts = TUNCHS.map(function(t){ return '<option>'+t+'</option>'; }).join('');
-  var sOpts = '<option value="">-- Select --</option>'+SILVER_PRODS.map(function(s){ return '<option>'+s+'</option>'; }).join('');
-  var paymentStatus = document.getElementById('paymentStatus').value;
-  var isOrder = (paymentStatus === 'Order Placed');
-
-  var div = document.createElement('div');
-  div.className='entry'; div.id='entry-'+eid;
-
-  // FOR ORDER PLACED: No Tag Status, Tag No, Photo (optional)
-  // FOR OTHERS: Full gold details with Tag Status, Tag No, Photo
-  var goldSection = '';
-  if (!isOrder) {
-    goldSection = '<div id="goldP-'+eid+'">'+
-      '<div class="card" style="margin:10px 14px 14px;">'+
-        '<div class="ch">◈ &nbsp;Gold Item Details</div>'+
-        '<div class="cb">'+
-          '<div class="g2 mb12">'+
-            '<div><label>Tag Status <span class="req">★</span></label>'+
-              '<div class="tgl" id="tgl-tg-'+eid+'">'+
-                '<button class="on" onclick="setTagTgl(this,'+eid+',\'Tag\')">Tag</button>'+
-                '<button onclick="setTagTgl(this,'+eid+',\'No Tag\')">Non Tag</button>'+
-              '</div><input type="hidden" id="tgSt-'+eid+'" value="Tag" /></div>'+
-            '<div id="tgNdiv-'+eid+'"><label>Tag No <span class="req">★</span></label>'+
-              '<input type="text" id="tgNo-'+eid+'" placeholder="e.g. C498, R749" /></div>'+
-          '</div>'+
-          '<div class="g2 mb12">'+
-            '<div><label>Product Name <span class="req">★</span></label>'+
-              '<select id="pn-'+eid+'" onchange="toggleOtherGold('+eid+')">'+gOpts+'</select>'+
-              '<div id="pnOther-'+eid+'" style="display:none;margin-top:8px;">'+
-                '<input type="text" id="pnCustom-'+eid+'" placeholder="Enter product name" /></div></div>'+
-            '<div><label>Design <span class="req">★</span></label>'+
-              '<input type="text" id="des-'+eid+'" placeholder="Bombay, Traditional..." /></div>'+
-          '</div>'+
-          '<div class="g3">'+
-            '<div><label>Tunch <span class="req">★</span></label>'+
-              '<select id="tch-'+eid+'"><option value="">-- Select --</option>'+tOpts+'</select></div>'+
-            '<div><label>Weight (gm) <span class="req">★</span></label>'+
-              '<input type="text" id="wt-'+eid+'" placeholder="e.g. 21.37" /></div>'+
-            '<div><label>Photo</label>'+photoWidget(eid,'p')+'</div>'+
-          '</div>'+
-        '</div>'+
-      '</div>'+
-    '</div>';
-  } else {
-    // ORDER PLACED: All fields but with optional (no ★) for Tag/Design/Tunch/Weight
-    goldSection = '<div id="goldP-'+eid+'">'+
-      '<div class="card" style="margin:10px 14px 14px;">'+
-        '<div class="ch">◈ &nbsp;Gold Item Details</div>'+
-        '<div class="cb">'+
-          '<div class="g2 mb12">'+
-            '<div><label>Tag Status</label>'+
-              '<div class="tgl" id="tgl-tg-'+eid+'">'+
-                '<button class="on" onclick="setTagTgl(this,'+eid+',\'Tag\')">Tag</button>'+
-                '<button onclick="setTagTgl(this,'+eid+',\'No Tag\')">Non Tag</button>'+
-              '</div><input type="hidden" id="tgSt-'+eid+'" value="Tag" /></div>'+
-            '<div id="tgNdiv-'+eid+'"><label>Tag No</label>'+
-              '<input type="text" id="tgNo-'+eid+'" placeholder="e.g. C498, R749" /></div>'+
-          '</div>'+
-          '<div class="g2 mb12">'+
-            '<div><label>Product Name <span class="req">★</span></label>'+
-              '<select id="pn-'+eid+'" onchange="toggleOtherGold('+eid+')">'+gOpts+'</select>'+
-              '<div id="pnOther-'+eid+'" style="display:none;margin-top:8px;">'+
-                '<input type="text" id="pnCustom-'+eid+'" placeholder="Enter product name" /></div></div>'+
-            '<div><label>Design</label>'+
-              '<input type="text" id="des-'+eid+'" placeholder="Bombay, Traditional..." /></div>'+
-          '</div>'+
-          '<div class="g3">'+
-            '<div><label>Tunch</label>'+
-              '<select id="tch-'+eid+'"><option value="">-- Select --</option>'+tOpts+'</select></div>'+
-            '<div><label>Weight (gm)</label>'+
-              '<input type="text" id="wt-'+eid+'" placeholder="e.g. 21.37" /></div>'+
-            '<div><label>Photo</label>'+photoWidget(eid,'p')+'</div>'+
-          '</div>'+
-        '</div>'+
-      '</div>'+
-    '</div>';
-  }
-
-  div.innerHTML =
-    '<div class="entry-hd">'+
-      '<span class="entry-title">◈ &nbsp;Item Entry '+num+'</span>'+
-      (num>1?'<button class="rm-entry" onclick="rmEntry('+eid+')">✕ Remove</button>':'<span></span>')+
-    '</div>'+
-    '<div class="card" style="margin:14px 14px 0;">'+
-      '<div class="ch">⬡ &nbsp;Type &amp; Source</div>'+
-      '<div class="cb"><div class="g2">'+
-        '<div><label>Type <span class="req">★</span></label>'+
-          '<div class="tgl" id="tgl-typ-'+eid+'">'+
-            '<button class="on" onclick="setTgl(\'tgl-typ-'+eid+'\',\'typ-'+eid+'\',\'Gold\',this)">Gold</button>'+
-            '<button onclick="setTgl(\'tgl-typ-'+eid+'\',\'typ-'+eid+'\',\'Silver\',this)">Silver</button>'+
-          '</div><input type="hidden" id="typ-'+eid+'" value="Gold" /></div>'+
-        '<div><label>Product From <span class="req">★</span></label>'+
-          '<div class="tgl" id="tgl-pf-'+eid+'">'+
-            '<button class="on" onclick="setTgl(\'tgl-pf-'+eid+'\',\'pf-'+eid+'\',\'Retail\',this)">Retail</button>'+
-            '<button onclick="setTgl(\'tgl-pf-'+eid+'\',\'pf-'+eid+'\',\'Main\',this)">Main</button>'+
-          '</div><input type="hidden" id="pf-'+eid+'" value="Retail" /></div>'+
-      '</div></div>'+
-    '</div>'+
-    goldSection+
-    '<div id="silvP-'+eid+'" style="display:none;">'+
-      '<div class="card" style="margin:10px 14px 14px;">'+
-        '<div class="ch">◎ &nbsp;Silver Item Details</div>'+
-        '<div class="cb">'+
-          '<div class="g2 mb12">'+
-            '<div><label>Silver Item <span class="req">★</span></label>'+
-              '<select id="sn-'+eid+'" onchange="toggleOtherSilver('+eid+')">'+sOpts+'</select>'+
-              '<div id="snOther-'+eid+'" style="display:none;margin-top:8px;">'+
-                '<input type="text" id="snCustom-'+eid+'" placeholder="Enter silver item name" /></div></div>'+
-            '<div><label>Weight (gm) <span class="req">★</span></label>'+
-              '<input type="text" id="sw-'+eid+'" placeholder="e.g. 12.50" /></div>'+
-          '</div>'+
-          '<div><label>Photo</label>'+photoWidget(eid,'s')+'</div>'+
-        '</div>'+
-      '</div>'+
-    '</div>';
-
-  list.appendChild(div);
-  reNumEntries();
-}
-
-function rmEntry(eid) {
-  var el = document.getElementById('entry-'+eid);
-  if (el) { el.remove(); reNumEntries(); }
-}
-
-function reNumEntries() {
-  document.getElementById('entriesList').querySelectorAll('.entry').forEach(function(e,i){
-    var t = e.querySelector('.entry-title');
-    if (t) t.innerHTML = '◈ &nbsp;Item Entry '+(i+1);
-  });
-}
-
-function setTagTgl(btn, eid, val) {
-  document.getElementById('tgl-tg-'+eid).querySelectorAll('button').forEach(function(b){ b.classList.remove('on'); });
-  btn.classList.add('on');
-  document.getElementById('tgSt-'+eid).value = val;
-  document.getElementById('tgNdiv-'+eid).style.display = (val==='Tag') ? '' : 'none';
-}
-
-function gv(id) { var e=document.getElementById(id); return e?e.value.trim():''; }
-
-function notify(msg, type) {
-  var t=document.getElementById('toast');
-  t.textContent=msg; t.className='toast '+(type||'');
-  t.classList.add('show');
-  setTimeout(function(){ t.classList.remove('show'); }, 4500);
-}
-
-// ── SUBMIT DSR ──
-function doSubmit() {
-  var date=gv('billDate'), cust=gv('custName'), mob=gv('mobNum'),
-      addr=gv('addr'), emp=gv('empName'), payStatus=gv('paymentStatus');
-
-  if (!date||!cust||!mob||!addr) { notify('Please fill all Bill Details!','err'); return; }
-  if (!/^\d{10}$/.test(mob)) {
-    document.getElementById('mobNum').classList.add('err-inp');
-    document.getElementById('mobErr').textContent='⚠ WRONG — 10 digits required';
-    document.getElementById('mobErr').classList.add('show');
-    notify('Mobile must be 10 digits!','err'); return;
-  }
-  if (!emp) { notify('Please select Employee!','err'); return; }
-
-  var entries=document.getElementById('entriesList').querySelectorAll('.entry');
-  if (!entries.length) { notify('Please add at least one item!','err'); return; }
-
-  var rows=[], ok=true, errMsg='';
-
-  entries.forEach(function(block) {
-    if (!ok) return;
-    var eid=block.id.replace('entry-','');
-    var type=gv('typ-'+eid), pf=gv('pf-'+eid);
-    var isOrder = (payStatus === 'Order Placed');
-
-    if (type==='Silver') {
-      var sn=gv('sn-'+eid); if(sn==='Other') sn=gv('snCustom-'+eid);
-      var sw=gv('sw-'+eid);
-      if (!sn){ ok=false; errMsg='Please select Silver Item!'; return; }
-      if (!sw){ ok=false; errMsg='Please enter Silver Weight!'; return; }
-      rows.push({
-        employeeName:emp,billDate:date,customerName:cust,mobileNumber:mob,address:addr,paymentStatus:payStatus,
-        type:type,productFrom:pf,tagStatus:'',tagNo:'',productName:'',design:'',tunch:'',weight:'',photo:'',
-        silverItemName:sn,silverItemWeight:sw,silverItemPhoto:gv('shh-'+eid)
-      });
-    } else {
-      var pn=gv('pn-'+eid); if(pn==='Other') pn=gv('pnCustom-'+eid);
-      var des=gv('des-'+eid), tch=gv('tch-'+eid), wt=gv('wt-'+eid),
-          ts=gv('tgSt-'+eid), tn=gv('tgNo-'+eid);
-      if (!pn){  ok=false; errMsg='Please select/enter Product Name!'; return; }
-      // For Order Placed — everything except Product Name is optional
-      // For Purchased/Advance — all fields required
-      var isOrder = (payStatus === 'Order Placed');
-      if (!isOrder) {
-        if (!des){ ok=false; errMsg='Please enter Design!'; return; }
-        if (!tch){ ok=false; errMsg='Please select Tunch!'; return; }
-        if (!wt){  ok=false; errMsg='Please enter Weight!'; return; }
-        if (ts==='Tag'&&!tn){ ok=false; errMsg='Please enter Tag No!'; return; }
-      }
-      rows.push({
-        employeeName:emp,billDate:date,customerName:cust,mobileNumber:mob,address:addr,paymentStatus:payStatus,
-        type:type,productFrom:pf,tagStatus:ts||'',tagNo:tn||'',productName:pn,design:des||'',tunch:tch||'',weight:wt||'',
-        photo:gv('phh-'+eid),silverItemName:'',silverItemWeight:'',silverItemPhoto:''
-      });
-    }
-  });
-
-  if (!ok){ notify(errMsg,'err'); return; }
-  if (!rows.length){ notify('No data to submit!','err'); return; }
-
-  var btn=document.getElementById('subBtn');
-  btn.disabled=true;
-  btn.innerHTML='⏳ &nbsp; Saving...';
-
-  fetch(GAS_URL, { method:'POST', body:JSON.stringify({rows:rows}) })
-    .then(function(res){ return res.json(); })
-    .then(function(result){
-      btn.disabled=false;
-      btn.innerHTML='★ &nbsp; Submit DSR &nbsp; ★';
-      if (result.status==='success') {
-        document.getElementById('ssId').textContent = result.dsrId||'—';
-
-        var badge    = document.getElementById('ssStatusBadge');
-        var ps       = result.paymentStatus || 'Purchased';
-        var isAdv    = ps === 'Advance';
-        var isOrder  = ps === 'Order Placed';
-        var bClass   = isAdv ? 'advance' : isOrder ? 'order' : 'purchased';
-        var bLabel   = isAdv ? '⏳ ADVANCE' : isOrder ? '📦 ORDER PLACED' : '✅ PURCHASED';
-        badge.innerHTML = '<div class="ss-status '+bClass+'">'+bLabel+'</div>';
-
-        var subNote = (result.savedCount||rows.length)+' item(s) saved  •  Email sent';
-        if (isAdv)   subNote += '  •  Advance sheet updated';
-        if (isOrder) subNote += '  •  Order Placed sheet updated';
-        document.getElementById('ssSub').textContent = subNote;
-
-        document.getElementById('successScreen').classList.add('show');
-      } else {
-        notify('Error: '+(result.message||'Unknown error'),'err');
-      }
-    })
-    .catch(function(err){
-      btn.disabled=false;
-      btn.innerHTML='★ &nbsp; Submit DSR &nbsp; ★';
-      notify('Network error: '+err,'err');
-    });
-}
-
-function closeSuccess() {
-  document.getElementById('successScreen').classList.remove('show');
-  document.getElementById('custName').value='';
-  document.getElementById('mobNum').value='';
-  document.getElementById('mobNum').classList.remove('err-inp');
-  document.getElementById('mobErr').classList.remove('show');
-  document.getElementById('addr').value='';
-  document.getElementById('empName').value='';
-  document.getElementById('entriesList').innerHTML='';
-  setPayStatus('Purchased', document.getElementById('btnPurchased'));
-  eSeq=0; addEntry();
-  document.getElementById('billDate').value=new Date().toISOString().split('T')[0];
-}
-
-// ═══════════════════════════════════════════════════════════
-// UPDATE PAYMENT STATUS — PAGE 2 LOGIC
-// ═══════════════════════════════════════════════════════════
-
-var currentEntryData = null;
-
-function doSearch() {
-  var dsrId = document.getElementById('searchDsrId').value.trim().toUpperCase();
-  if (!dsrId) { notify('Please enter a DSR ID!','err'); return; }
-
-  var btn=document.getElementById('searchBtn');
-  btn.disabled=true; btn.textContent='⏳ Searching...';
-
-  document.getElementById('updEntryCard').style.display='none';
-  document.getElementById('noResultMsg').classList.remove('show');
-  document.getElementById('updResult').classList.remove('show','err-result');
-
-  fetch(GAS_URL+'?action=getEntry&dsrId='+encodeURIComponent(dsrId))
-    .then(function(res){ return res.json(); })
-    .then(function(data){
-      btn.disabled=false; btn.textContent='🔍 \u00A0Search';
-      if (!data || data.error || !data.dsrId) {
-        document.getElementById('noResultMsg').classList.add('show');
-        return;
-      }
-      currentEntryData = data;
-      renderEntryCard(data);
-      document.getElementById('updEntryCard').style.display='block';
-    })
-    .catch(function(err){
-      btn.disabled=false; btn.textContent='🔍 \u00A0Search';
-      notify('Error searching: '+err,'err');
-    });
-}
-
-function renderEntryCard(d) {
-  document.getElementById('ecDsrId').textContent = d.dsrId||'—';
-
-  var cs = d.paymentStatus || 'Advance';
-  var bClass = cs==='Purchased'?'badge-purchased':cs==='Advance'?'badge-advance':cs==='Order Placed'?'badge-order':'badge-other';
-  document.getElementById('ecCurrentBadge').innerHTML =
-    '<span class="status-badge '+bClass+'">'+cs+'</span>';
-
-  var item = d.productName||d.silverItem||'—';
-  var rows = [
-    ['Employee', d.employeeName],
-    ['Customer', d.customerName],
-    ['Mobile', maskMob(d.mobileNumber)],
-    ['Address', d.address],
-    ['Bill Date', d.billDate],
-    ['Item', item],
-    ['Weight', d.weight ? d.weight+' gm' : '—'],
-    ['Current Status', '<span class="status-badge '+bClass+'">'+cs+'</span>']
-  ];
-  document.getElementById('ecBody').innerHTML = rows.map(function(r){
-    return '<div class="info-row"><span class="ir-lbl">'+r[0]+'</span><span class="ir-val">'+r[1]+'</span></div>';
-  }).join('');
-
-  // Pre-select opposite of current
-  if (cs==='Advance' || cs==='Order Placed') {
-    setUpdStatus('Purchased', document.getElementById('ut-purchased'));
-  } else {
-    setUpdStatus('Advance', document.getElementById('ut-advance'));
-  }
-}
-
-function setUpdStatus(val, btn) {
-  document.getElementById('updTgl').querySelectorAll('button').forEach(function(b){
-    b.classList.remove('on');
-  });
-  btn.classList.add('on');
-  document.getElementById('updStatus').value = val;
-  var notes = {
-    'Purchased':    '✅ Full payment received — entry removed from pending sheets',
-    'Advance':      '⏳ Still in advance — follow-up needed',
-    'Order Placed': '📦 Item still pending — will be tracked in Order Placed sheet',
-    'Other':        '✏️ Custom status — specify below'
+function collect(){
+  const errs = []; const rows = []; const confirmReturn = [];
+  const header = {
+    enteredBy: $('emp').value, entryDate: $('date').value, entryType: togVal($('tglType')),
+    productFrom: togVal($('tglFrom')), counter: $('counter').value
   };
-  document.getElementById('updStatusNote').textContent = notes[val]||'';
-  document.getElementById('otherInpWrap').className = 'other-inp-wrap'+(val==='Other'?' show':'');
-}
+  let hErr = '';
+  if(!header.enteredBy) hErr = 'Select Employee Name.';
+  else if(!header.entryDate) hErr = 'Select Date.';
+  else if(!header.entryType) hErr = 'Select Stock Entry Type (Opening / Receiving).';
+  else if(header.productFrom==='Retail' && !header.counter) hErr = 'Select Counter Name.';
+  if(hErr) return {header, hErr};
 
-function doUpdateStatus() {
-  if (!currentEntryData) { notify('Please search for a DSR first!','err'); return; }
-
-  var status = document.getElementById('updStatus').value;
-  if (!status) { notify('Please select a status!','err'); return; }
-  if (status==='Other') {
-    status = document.getElementById('otherStatusVal').value.trim();
-    if (!status) { notify('Please enter a status name!','err'); return; }
-  }
-
-  var dsrId = currentEntryData.dsrId;
-  var btn=document.getElementById('updConfirmBtn');
-  btn.disabled=true; btn.innerHTML='⏳ Updating...';
-
-  fetch(GAS_URL+'?action=updateStatus&dsrId='+encodeURIComponent(dsrId)+'&newStatus='+encodeURIComponent(status))
-    .then(function(res){ return res.json(); })
-    .then(function(result){
-      btn.disabled=false; btn.innerHTML='✓ &nbsp; Confirm Status Update';
-      var resDiv=document.getElementById('updResult');
-      if (result.status==='success') {
-        document.getElementById('updResultIcon').textContent='✓';
-        document.getElementById('updResultTitle').textContent='Status Updated!';
-        var note = status==='Purchased' ? 'Removed from all pending sheets ✓'
-                 : status==='Advance'   ? 'Entry in Advance Items'
-                 : status==='Order Placed' ? 'Entry tracked in Order Placed sheet'
-                 : 'Custom status saved';
-        document.getElementById('updResultMsg').innerHTML =
-          '<b>'+dsrId+'</b> → <b>'+status+'</b><br>'+note+'<br><br>Sheet updated successfully.';
-        resDiv.className='upd-result show';
-        var bClass = status==='Purchased'?'badge-purchased':status==='Advance'?'badge-advance':status==='Order Placed'?'badge-order':'badge-other';
-        document.getElementById('ecCurrentBadge').innerHTML =
-          '<span class="status-badge '+bClass+'">'+status+'</span>';
-      } else {
-        document.getElementById('updResultIcon').textContent='⚠';
-        document.getElementById('updResultTitle').textContent='Update Failed';
-        document.getElementById('updResultMsg').textContent = result.message||'Unknown error';
-        resDiv.className='upd-result show err-result';
+  const tagsSeen = {};
+  document.querySelectorAll('.item').forEach((b,i)=>{
+    const type = togVal(R(b,'type')), isTag = togVal(R(b,'tagst'))==='Tag';
+    const e = m => errs.push({b, m});
+    const pn = productNameOf(b);
+    if(!pn) return e('Select / enter Product Name.');
+    let tagNo = '';
+    if(isTag){
+      tagNo = K(b,'tagNo').value.trim();
+      if(!tagNo) return e('Enter Tag No.');
+      if(hasSep(tagNo)) return e('Tag No: space, - or / not allowed. Enter like BOM2154.');
+      const tn = normTag(tagNo);
+      if(tagsSeen[tn]) return e('Duplicate: this tag is entered twice in this form.');
+      tagsSeen[tn] = 1;
+      if(b._tagState==='dup') return e('Duplicate tag — already in stock.');
+      if(b._tagState==='sold'){
+        if(R(b,'retChk').checked) confirmReturn.push(tn);
+        else return e('This tag is sold. Tick "Add it to stock again (Return)" or correct the tag.');
       }
-    })
-    .catch(function(err){
-      btn.disabled=false; btn.innerHTML='✓ &nbsp; Confirm Status Update';
-      notify('Network error: '+err,'err');
-    });
+    } else {
+      const q = parseInt(K(b,'qty').value,10);
+      if(!q || q<1) return e('Quantity must be 1 or more.');
+    }
+    const sf = sizeFlagsOf(b);
+    if(sf.bangle && !pickVal(b,'bangleSize')) return e('Select Bangle Size.');
+    if(sf.ring   && !pickVal(b,'ringSize'))   return e('Select Ring Size.');
+    if(sf.length && !pickVal(b,'length'))     return e('Select Length.');
+    const row = { type, tagStatus: isTag?'Tag':'Non Tag', tagNo, qty: isTag?1:parseInt(K(b,'qty').value,10), productName: pn,
+      bangleSize: sf.bangle?pickVal(b,'bangleSize'):'', ringSize: sf.ring?pickVal(b,'ringSize'):'',
+      length: sf.length?pickVal(b,'length'):'', photo: b._photo||'' };
+    if(type==='Gold'){
+      row.design = titleCase(pickVal(b,'design')); row.tunch = K(b,'tunch').value; row.weight = K(b,'weight').value.trim();
+      if(!row.design) return e('Select / enter Design.');
+      if(!row.tunch) return e('Select Tunch.');
+      if(!(parseFloat(row.weight)>0)) return e('Enter Weight.');
+    } else {
+      row.gross = K(b,'gross').value.trim(); row.net = K(b,'net').value.trim(); row.tunch = K(b,'diaTunch').value;
+      row.carat = K(b,'carat').value.trim(); row.clarity = K(b,'clarity').value; row.color = K(b,'color').value; row.certNo = K(b,'certNo').value.trim();
+      if(!(parseFloat(row.gross)>0)) return e('Enter Gross Wt.');
+      if(!(parseFloat(row.net)>0)) return e('Enter Net Wt.');
+      if(parseFloat(row.net)>parseFloat(row.gross)) return e('Net Wt cannot be more than Gross Wt.');
+    }
+    rows.push({row, b});
+  });
+  return {header, errs, rows, confirmReturn};
 }
 
-function resetUpdatePage() {
-  document.getElementById('searchDsrId').value='';
-  document.getElementById('updEntryCard').style.display='none';
-  document.getElementById('updResult').classList.remove('show','err-result');
-  document.getElementById('noResultMsg').classList.remove('show');
-  document.getElementById('otherStatusVal').value='';
-  currentEntryData=null;
-  document.getElementById('searchDsrId').focus();
-}
+$('addItem').addEventListener('click', ()=>{ const d = addItem(); d.scrollIntoView({block:'center', behavior:'smooth'}); });
+$('clearBtn').addEventListener('click', ()=>{
+  if([...document.querySelectorAll('.item')].some(b=>K(b,'tagNo').value||K(b,'weight').value||K(b,'gross').value||K(b,'design').value||K(b,'designCustom').value)
+     && !confirm('Clear all entered items?')) return;
+  $('items').innerHTML=''; addItem(); $('resultBanner').className='banner';
+});
 
-function maskMob(m) {
-  m=String(m||'');
-  return m.length===10?m.substring(0,2)+'******'+m.substring(8):m;
-}
+$('saveBtn').addEventListener('click', async ()=>{
+  $('resultBanner').className = 'banner'; clearItemErrors();
+  if(SCRIPT_URL.indexOf('PASTE')!==-1){ showBanner('err','Set SCRIPT_URL in this file first (stock Web App URL).'); return; }
+  const c = collect();
+  if(c.hErr){ showBanner('err', c.hErr); return; }
+  if(c.errs.length){
+    c.errs.forEach(x=>itemError(x.b, x.m));
+    showBanner('err', 'Please fix the highlighted item(s).');
+    c.errs[0].b.scrollIntoView({block:'center', behavior:'smooth'});
+    return;
+  }
+  if(!c.rows.length){ showBanner('err','Add at least one item.'); return; }
+
+  const btn = $('saveBtn'); btn.disabled = true; btn.textContent = 'Saving…';
+  // same content => same idemKey, so tapping Save again after a lost response can never double-save
+  const base = Object.assign({ action:'saveStock', rows: c.rows.map(x=>x.row), confirmReturn: c.confirmReturn }, c.header);
+  const payload = Object.assign({ idemKey: 'k' + submitToken + hashStr(JSON.stringify(base)) }, base);
+  if(!navigator.onLine){
+    queueOffline(payload, c.header);
+    btn.disabled = false; btn.textContent = '★  Save Stock  ★';
+    return;
+  }
+  try{
+    const res = await fetchT(SCRIPT_URL, { method:'POST', body: JSON.stringify(payload) }, 90000).then(r=>r.json());
+    if(res.ok){
+      submitToken = Math.random().toString(36).slice(2,8);
+      $('items').innerHTML=''; addItem();
+      showBanner('ok', 'Saved ' + res.saved + (res.saved===1?' item':' items') + ' to ' + (c.header.productFrom==='Main' ? 'Main Hub' : c.header.counter) + '.');
+    } else if(res.errors && res.errors.length){
+      res.errors.forEach(er=>{ const b = c.rows[er.index] && c.rows[er.index].b; if(b) itemError(b, er.message); });
+      showBanner('err','Nothing was saved. Fix the highlighted item(s) and save again.');
+      const first = c.rows[res.errors[0].index]; if(first) first.b.scrollIntoView({block:'center', behavior:'smooth'});
+    } else {
+      showBanner('err', res.error || 'Save failed. Nothing was saved.');
+    }
+  }catch(e){
+    // Real network failure (offline mid-request, timeout, server unreachable) — never a validation
+    // rejection, those are handled above via res.errors. Safe to queue: idemKey means even if the
+    // original request secretly DID reach the server, replaying it later can't create a duplicate.
+    queueOffline(payload, c.header);
+  }finally{
+    btn.disabled = false; btn.textContent = '★  Save Stock  ★';
+  }
+});
+
+updateConnStatus();
+addItem();
+loadData().then(()=>flushOfflineQueue(true));
 </script>
 </body>
 </html>
