@@ -34,6 +34,17 @@
   .brand-sub{margin:2px 0 0;font-size:11px;font-weight:700;letter-spacing:2.5px;color:var(--muted);text-transform:uppercase}
   .brand-stars{margin-left:auto;flex:0 0 auto;display:flex;gap:5px;color:var(--gold-soft);font-size:16px}
 
+  .save-overlay{position:fixed;inset:0;background:rgba(42,26,61,.38);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+    display:none;align-items:center;justify-content:center;z-index:9999;padding:20px}
+  .save-overlay.show{display:flex}
+  .save-overlay-box{background:var(--card);border:1.5px solid var(--gold);border-radius:16px;padding:28px 34px;
+    display:flex;flex-direction:column;align-items:center;gap:14px;box-shadow:0 12px 32px rgba(0,0,0,.28)}
+  .spinner-circle{width:52px;height:52px;border-radius:50%;flex:0 0 auto;
+    border:5px solid var(--purple-bg);border-top-color:var(--purple);border-right-color:var(--gold-soft);
+    animation:spinCircle .75s linear infinite}
+  @keyframes spinCircle{to{transform:rotate(360deg)}}
+  .save-overlay-text{font-weight:700;color:var(--purple);font-size:14px;letter-spacing:.3px;text-align:center}
+
   .card{background:var(--card);border:1.5px solid var(--gold);border-radius:14px;margin:14px 0;overflow:hidden}
   .ch{background:var(--purple-bg);border-bottom:1px solid var(--purple);color:var(--purple);font-weight:700;font-size:13px;
       letter-spacing:.8px;text-transform:uppercase;padding:11px 16px}
@@ -105,6 +116,13 @@
 </style>
 </head>
 <body>
+
+<div class="save-overlay" id="saveOverlay">
+  <div class="save-overlay-box">
+    <div class="spinner-circle"></div>
+    <div class="save-overlay-text" id="saveOverlayText">Saving…</div>
+  </div>
+</div>
 
 <div class="page-frame">
 
@@ -250,6 +268,7 @@ async function flushOfflineQueue(silent){
     const q = getQueue();
     if(!q.length){ updateConnStatus(); return; }
     saveQueue([]);   // claim before sending, so a second trigger (online event + Sync tap) can't resend the same items
+    showOverlay('Syncing offline items…');
     const remaining = [];
     let synced = 0;
     for(const item of q){
@@ -265,6 +284,7 @@ async function flushOfflineQueue(silent){
     if(synced>0) showBanner('ok', '✅ ' + synced + ' offline item(s) synced.' + (remaining.length? ' ' + remaining.length + ' still pending (will retry).' : ''));
     else if(remaining.length && !silent) showBanner('err', remaining.length + ' offline item(s) could not sync yet — will retry automatically.');
   } finally {
+    hideOverlay();
     __stockFlushInFlight = false;
   }
 }
@@ -616,6 +636,8 @@ function showBanner(cls, txt){
   const el = $('resultBanner'); el.className = 'banner show ' + cls; el.textContent = txt;
   el.scrollIntoView({block:'nearest', behavior:'smooth'});
 }
+function showOverlay(text){ $('saveOverlayText').textContent = text||'Saving…'; $('saveOverlay').classList.add('show'); }
+function hideOverlay(){ $('saveOverlay').classList.remove('show'); }
 function itemError(b, msg){
   const e = b.querySelector('.itemerr'); b.classList.toggle('err', !!msg);
   e.textContent = msg||''; e.classList.toggle('hide', !msg);
@@ -703,12 +725,14 @@ $('saveBtn').addEventListener('click', async ()=>{
   if(!c.rows.length){ showBanner('err','Add at least one item.'); return; }
 
   const btn = $('saveBtn'); btn.disabled = true; btn.textContent = 'Saving…';
+  showOverlay('Saving…');
   // same content => same idemKey, so tapping Save again after a lost response can never double-save
   const base = Object.assign({ action:'saveStock', rows: c.rows.map(x=>x.row), confirmReturn: c.confirmReturn }, c.header);
   const payload = Object.assign({ idemKey: 'k' + submitToken + hashStr(JSON.stringify(base)) }, base);
   if(!navigator.onLine){
     queueOffline(payload, c.header);
     btn.disabled = false; btn.textContent = '★  Save Stock  ★';
+    hideOverlay();
     return;
   }
   try{
@@ -731,6 +755,7 @@ $('saveBtn').addEventListener('click', async ()=>{
     queueOffline(payload, c.header);
   }finally{
     btn.disabled = false; btn.textContent = '★  Save Stock  ★';
+    hideOverlay();
   }
 });
 
