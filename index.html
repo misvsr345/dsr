@@ -216,6 +216,8 @@ const LS_QUEUE = 'vsrStockOfflineQueue_v1';   // items saved while offline / whe
 function hashStr(str){ let h=5381; for(let i=0;i<str.length;i++){ h=((h<<5)+h+str.charCodeAt(i))|0; } return (h>>>0).toString(36)+str.length.toString(36); }
 function normTag(s){ return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
 function hasSep(s){ return /[^A-Za-z0-9]/.test(String(s||'').trim()); }
+// A real Tag No is letters + numbers together (e.g. BOM2154) — never pure digits, never pure letters.
+function tagFormatValid(s){ return /^(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]+$/.test(String(s||'').trim()); }
 // Product Name / Design are names, so a custom-typed value is normalized the same way the server already
 // normalizes its own product list — "gold chain" and "GOLD CHAIN" both become "Gold Chain".
 function titleCase(s){ return String(s||'').trim().replace(/\s+/g,' ').toLowerCase().replace(/(^|[\s/-])([a-z])/g,(m,sep,c)=>sep+c.toUpperCase()); }
@@ -579,6 +581,7 @@ async function checkTag(b){
   R(b,'retWrap').classList.add('hide'); R(b,'retChk').checked = false; b._tagState = '';
   if(!raw){ setTagMsg(b,'info',''); return; }
   if(hasSep(raw)){ setTagMsg(b,'err','Space, - or / not allowed. Enter like BOM2154.'); inp.classList.add('bad'); b._tagState='sep'; return; }
+  if(!tagFormatValid(raw)){ setTagMsg(b,'err','Tag No needs both letters and numbers — e.g. BOM2154.'); inp.classList.add('bad'); b._tagState='sep'; return; }
   inp.value = raw.toUpperCase(); inp.classList.remove('bad');
   const tagN = normTag(raw);
   if(tagUsedElsewhere(b, tagN)){ setTagMsg(b,'err','Duplicate: this tag is already entered in another item below/above.'); inp.classList.add('bad'); b._tagState='dup'; return; }
@@ -668,6 +671,7 @@ function collect(){
       tagNo = K(b,'tagNo').value.trim();
       if(!tagNo) return e('Enter Tag No.');
       if(hasSep(tagNo)) return e('Tag No: space, - or / not allowed. Enter like BOM2154.');
+      if(!tagFormatValid(tagNo)) return e('Tag No needs both letters and numbers — e.g. BOM2154.');
       const tn = normTag(tagNo);
       if(tagsSeen[tn]) return e('Duplicate: this tag is entered twice in this form.');
       tagsSeen[tn] = 1;
