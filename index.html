@@ -70,6 +70,9 @@
 
   .item{background:#fff;border:1.5px solid var(--gold);border-radius:14px;margin:14px 0;overflow:hidden}
   .item.err{border-color:var(--err)}
+  .subbox{border:1.5px solid var(--gold-soft);border-radius:12px;margin-bottom:14px;overflow:hidden;background:#FCFAFF}
+  .subbox-hd{background:var(--purple-bg);color:var(--purple);font-weight:700;font-size:11px;letter-spacing:.6px;text-transform:uppercase;padding:8px 14px;border-bottom:1px solid var(--gold-soft)}
+  .subbox-body{padding:14px}
   .item-hd{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;background:var(--purple-bg);
     border-bottom:1px solid var(--purple);color:var(--purple);font-weight:700;font-size:13px;letter-spacing:.6px;text-transform:uppercase}
   .rm{background:none;border:0;color:var(--err);font:inherit;font-weight:700;font-size:12px;cursor:pointer;padding:4px 8px}
@@ -436,30 +439,36 @@ function addItem(){
           <select data-k="length"></select><input type="text" data-k="lengthCustom" class="hide" placeholder="Type length" style="margin-top:8px"></div>
       </div>
 
-      <div data-r="goldBox">
-        <div class="g3 mb">
-          <div><label>Design <span class="req">★</span></label><select data-k="design"></select>
-            <input type="text" data-k="designCustom" class="hide" placeholder="Enter design name" style="margin-top:8px"></div>
-          <div><label>Tunch <span class="req">★</span></label>
-            <select data-k="tunch"><option value="">-- Select --</option>${TUNCHS.map(t=>`<option>${t}</option>`).join('')}</select></div>
-          <div><label data-r="wtLbl">Weight (gm) <span class="req">★</span></label><input type="text" inputmode="decimal" data-k="weight" placeholder="e.g. 21.37"></div>
+      <div class="subbox" data-r="goldBox">
+        <div class="subbox-hd">Gold Details</div>
+        <div class="subbox-body">
+          <div class="g3 mb">
+            <div><label>Design <span class="req">★</span></label><select data-k="design"></select>
+              <input type="text" data-k="designCustom" class="hide" placeholder="Enter design name" style="margin-top:8px"></div>
+            <div><label>Tunch <span class="req">★</span></label>
+              <select data-k="tunch"><option value="">-- Select --</option>${TUNCHS.map(t=>`<option>${t}</option>`).join('')}</select></div>
+            <div><label data-r="wtLbl">Weight (gm) <span class="req">★</span></label><input type="text" inputmode="decimal" data-k="weight" placeholder="e.g. 21.37"></div>
+          </div>
         </div>
       </div>
 
-      <div class="hide" data-r="diaBox">
-        <div class="g2 mb">
-          <div><label>Gross Wt (gm) <span class="req">★</span></label><input type="text" inputmode="decimal" data-k="gross" placeholder="e.g. 6.10"></div>
-          <div><label>Net Wt (gm) <span class="req">★</span></label><input type="text" inputmode="decimal" data-k="net" placeholder="e.g. 5.20"></div>
+      <div class="hide subbox" data-r="diaBox">
+        <div class="subbox-hd">Diamond Details</div>
+        <div class="subbox-body">
+          <div class="g2 mb" data-r="diaGrossNetWrap">
+            <div><label>Gross Wt (gm) <span class="req">★</span></label><input type="text" inputmode="decimal" data-k="gross" placeholder="e.g. 6.10"></div>
+            <div><label>Net Wt (gm) <span class="req">★</span></label><input type="text" inputmode="decimal" data-k="net" placeholder="e.g. 5.20"></div>
+          </div>
+          <div class="g2 mb">
+            <div data-r="diaGoldTunchWrap"><label>Gold Tunch</label><select data-k="diaTunch"><option value="">-- Select --</option>${TUNCHS.map(t=>`<option>${t}</option>`).join('')}</select></div>
+            <div><label>Carat</label><input type="text" data-k="carat" placeholder="e.g. 0.50ct"></div>
+          </div>
+          <div class="g2 mb">
+            <div><label>Clarity</label><select data-k="clarity"></select></div>
+            <div><label>Color</label><select data-k="color"></select></div>
+          </div>
+          <div class="mb"><label>Certificate No</label><input type="text" data-k="certNo" placeholder="e.g. GIA-1234567"></div>
         </div>
-        <div class="g2 mb">
-          <div data-r="diaGoldTunchWrap"><label>Gold Tunch</label><select data-k="diaTunch"><option value="">-- Select --</option>${TUNCHS.map(t=>`<option>${t}</option>`).join('')}</select></div>
-          <div><label>Carat</label><input type="text" data-k="carat" placeholder="e.g. 0.50ct"></div>
-        </div>
-        <div class="g2 mb">
-          <div><label>Clarity</label><select data-k="clarity"></select></div>
-          <div><label>Color</label><select data-k="color"></select></div>
-        </div>
-        <div class="mb"><label>Certificate No</label><input type="text" data-k="certNo" placeholder="e.g. GIA-1234567"></div>
       </div>
 
       <div>
@@ -574,14 +583,21 @@ function applyDiamondCounterLock(b){
       const btn = R(b,'type').querySelector('button[data-v="Diamond"]');
       if(btn) btn.click();   // reuses the existing type-toggle handler (shows diaBox, refreshes lists/sizes)
     }
-    // Merge: keep Design/Tunch/Weight (goldBox) visible alongside the Diamond-only fields, and hide
-    // diaBox's own "Gold Tunch" so there isn't a second, duplicate Tunch field on screen.
+    // Merge: Gross/Net Wt visually move into the "Gold Details" box (they describe the metal, same as
+    // Design/Tunch/Weight), diaBox's own "Gold Tunch" hides so there's no duplicate Tunch field. Only
+    // moved, never duplicated — the same input keeps whatever the person already typed.
     R(b,'goldBox').classList.remove('hide');
     R(b,'diaGoldTunchWrap').classList.add('hide');
+    const goldBody = R(b,'goldBox').querySelector('.subbox-body');
+    const grossNetWrap = R(b,'diaGrossNetWrap');
+    if(grossNetWrap.parentElement !== goldBody) goldBody.appendChild(grossNetWrap);
   } else {
     const t = togVal(R(b,'type'));
     R(b,'goldBox').classList.toggle('hide', t!=='Gold');
     R(b,'diaGoldTunchWrap').classList.remove('hide');
+    const diaBody = R(b,'diaBox').querySelector('.subbox-body');
+    const grossNetWrap = R(b,'diaGrossNetWrap');
+    if(grossNetWrap.parentElement !== diaBody) diaBody.insertBefore(grossNetWrap, diaBody.firstChild);
   }
 }
 function applyDiamondCounterLockAll(){ document.querySelectorAll('.item').forEach(applyDiamondCounterLock); }
