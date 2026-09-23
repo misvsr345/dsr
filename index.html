@@ -328,8 +328,9 @@ bindToggle($('tglFrom'), v=>{
   $('counterWrap').classList.toggle('hide', v==='Main');
   $('hubNote').classList.toggle('hide', v!=='Main');
   refreshAllDesigns();
+  applyDiamondCounterLockAll();
 });
-$('counter').addEventListener('change', refreshAllDesigns);
+$('counter').addEventListener('change', ()=>{ refreshAllDesigns(); applyDiamondCounterLockAll(); });
 $('emp').addEventListener('change', ()=>{ try{ localStorage.setItem(LS_EMP, $('emp').value); }catch(e){} });
 
 function fillEmployees(list){
@@ -402,11 +403,12 @@ function addItem(){
     <div class="itemerr hide"></div>
     <div class="item-body">
       <div class="g2 mb">
-        <div><label>Type <span class="req">★</span></label>
+        <div data-r="typeWrap"><label>Type <span class="req">★</span></label>
           <div class="tgl" data-r="type"><button type="button" data-v="Gold" class="on">Gold</button><button type="button" data-v="Diamond">Diamond</button></div></div>
         <div><label>Tag Status</label>
           <div class="tgl" data-r="tagst"><button type="button" data-v="Tag" class="on">Tag</button><button type="button" data-v="Non Tag">Non Tag</button></div></div>
       </div>
+      <div class="mb hide" data-r="diaCounterNote"><div class="msg info">💎 Diamond Counter selected — Diamond item only.</div></div>
 
       <div class="mb" data-r="tagWrap">
         <label>Tag No <span class="req">★</span></label>
@@ -450,7 +452,7 @@ function addItem(){
           <div><label>Net Wt (gm) <span class="req">★</span></label><input type="text" inputmode="decimal" data-k="net" placeholder="e.g. 5.20"></div>
         </div>
         <div class="g2 mb">
-          <div><label>Gold Tunch</label><select data-k="diaTunch"><option value="">-- Select --</option>${TUNCHS.map(t=>`<option>${t}</option>`).join('')}</select></div>
+          <div data-r="diaGoldTunchWrap"><label>Gold Tunch</label><select data-k="diaTunch"><option value="">-- Select --</option>${TUNCHS.map(t=>`<option>${t}</option>`).join('')}</select></div>
           <div><label>Carat</label><input type="text" data-k="carat" placeholder="e.g. 0.50ct"></div>
         </div>
         <div class="g2 mb">
@@ -473,6 +475,7 @@ function addItem(){
   $('items').appendChild(div);
   wireItem(div);
   refreshItemLists(div);
+  applyDiamondCounterLock(div);
   renumber();
   return div;
 }
@@ -555,6 +558,33 @@ function refreshItemDesign(b){
   K(b,'designCustom').classList.toggle('hide', sel.value!=='__other');
 }
 function refreshAllDesigns(){ document.querySelectorAll('.item').forEach(refreshItemDesign); }
+
+// Diamond Counter is diamond-only stock, so once it's selected the Type toggle is hidden and every item
+// (existing and new) is locked to Diamond — no separate click needed. Any other counter (or Main) leaves
+// Type exactly as it was, freely switchable.
+function isDiamondCounterSelected(){
+  return togVal($('tglFrom'))==='Retail' && $('counter').value==='Diamond Counter';
+}
+function applyDiamondCounterLock(b){
+  const locked = isDiamondCounterSelected();
+  R(b,'typeWrap').classList.toggle('hide', locked);
+  R(b,'diaCounterNote').classList.toggle('hide', !locked);
+  if(locked){
+    if(togVal(R(b,'type'))!=='Diamond'){
+      const btn = R(b,'type').querySelector('button[data-v="Diamond"]');
+      if(btn) btn.click();   // reuses the existing type-toggle handler (shows diaBox, refreshes lists/sizes)
+    }
+    // Merge: keep Design/Tunch/Weight (goldBox) visible alongside the Diamond-only fields, and hide
+    // diaBox's own "Gold Tunch" so there isn't a second, duplicate Tunch field on screen.
+    R(b,'goldBox').classList.remove('hide');
+    R(b,'diaGoldTunchWrap').classList.add('hide');
+  } else {
+    const t = togVal(R(b,'type'));
+    R(b,'goldBox').classList.toggle('hide', t!=='Gold');
+    R(b,'diaGoldTunchWrap').classList.remove('hide');
+  }
+}
+function applyDiamondCounterLockAll(){ document.querySelectorAll('.item').forEach(applyDiamondCounterLock); }
 function productNameOf(b){
   const v = K(b,'productName').value;
   return v==='__other' ? titleCase(K(b,'productCustom').value) : v;
@@ -718,8 +748,18 @@ function collect(){
       if(!row.tunch) return e('Select Tunch.');
       if(!(parseFloat(row.weight)>0)) return e('Enter Weight.');
     } else {
-      row.gross = K(b,'gross').value.trim(); row.net = K(b,'net').value.trim(); row.tunch = K(b,'diaTunch').value;
+      const merged = isDiamondCounterSelected();
+      row.gross = K(b,'gross').value.trim(); row.net = K(b,'net').value.trim();
       row.carat = K(b,'carat').value.trim(); row.clarity = K(b,'clarity').value; row.color = K(b,'color').value; row.certNo = K(b,'certNo').value.trim();
+      if(merged){
+        // Diamond Counter merge: Design/Tunch/Weight come from goldBox instead of the (hidden) diaTunch field.
+        row.design = titleCase(pickVal(b,'design')); row.tunch = K(b,'tunch').value; row.weight = K(b,'weight').value.trim();
+        if(!row.design) return e('Select / enter Design.');
+        if(!row.tunch) return e('Select Tunch.');
+        if(!(parseFloat(row.weight)>0)) return e('Enter Weight.');
+      } else {
+        row.tunch = K(b,'diaTunch').value;
+      }
       if(!(parseFloat(row.gross)>0)) return e('Enter Gross Wt.');
       if(!(parseFloat(row.net)>0)) return e('Enter Net Wt.');
       if(parseFloat(row.net)>parseFloat(row.gross)) return e('Net Wt cannot be more than Gross Wt.');
