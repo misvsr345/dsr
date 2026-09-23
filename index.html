@@ -84,6 +84,7 @@
   .retconf{margin-top:8px;font-size:12.5px;display:flex;gap:8px;align-items:flex-start;color:var(--warn);text-transform:none;letter-spacing:0;font-weight:600}
   .retconf input{width:18px;height:18px;margin-top:1px;flex:0 0 auto}
 
+  .ph2col{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .phwrap{position:relative}
   .phlbl{display:flex;align-items:center;gap:8px;border:1.5px dashed var(--gold-soft);border-radius:10px;background:var(--purple-bg);
     color:#6B5A80;padding:12px 14px;cursor:pointer;font-size:12.5px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;min-height:44px}
@@ -473,10 +474,17 @@ function addItem(){
 
       <div>
         <label>Photo</label>
-        <div class="phwrap">
-          <div class="phlbl"><span>📷</span><span data-r="phTxt">Upload Photo</span></div>
-          <input type="file" accept="image/*" capture="environment" data-r="file">
+        <div class="ph2col">
+          <div class="phwrap">
+            <div class="phlbl"><span>📷</span><span>Take Photo</span></div>
+            <input type="file" accept="image/*" capture="environment" data-r="fileCam">
+          </div>
+          <div class="phwrap">
+            <div class="phlbl"><span>🖼️</span><span>Gallery</span></div>
+            <input type="file" accept="image/*" data-r="fileGal">
+          </div>
         </div>
+        <div class="msg info" data-r="phTxt"></div>
         <img class="phprev" data-r="prev" alt="">
         <button type="button" class="phrm" data-r="phRm">✕ Remove Photo</button>
       </div>
@@ -523,7 +531,8 @@ function wireItem(b){
   tag.addEventListener('change', ()=>checkTag(b));
   tag.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); tag.blur(); } });
   // photo
-  R(b,'file').addEventListener('change', ev=>loadPhoto(b, ev.target));
+  R(b,'fileCam').addEventListener('change', ev=>loadPhoto(b, ev.target));
+  R(b,'fileGal').addEventListener('change', ev=>loadPhoto(b, ev.target));
   R(b,'phRm').addEventListener('click', ()=>clearPhoto(b));
 }
 
@@ -685,7 +694,7 @@ function loadPhoto(b, inp){
   rd.readAsDataURL(f);
 }
 function clearPhoto(b){
-  b._photo = ''; R(b,'file').value = ''; R(b,'phTxt').textContent = 'Upload Photo';
+  b._photo = ''; R(b,'fileCam').value = ''; R(b,'fileGal').value = ''; R(b,'phTxt').textContent = '';
   const pv = R(b,'prev'); pv.src=''; pv.classList.remove('show'); R(b,'phRm').style.display = 'none';
 }
 
