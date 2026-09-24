@@ -528,7 +528,7 @@ function wireItem(b){
   bindToggle(R(b,'tagst'), v=>{
     R(b,'tagWrap').classList.toggle('hide', v!=='Tag');
     R(b,'qtyWrap').classList.toggle('hide', v==='Tag');
-    R(b,'wtLbl').innerHTML = (v==='Tag' ? 'Weight (gm)' : 'Total weight (gm)') + ' <span class="req">★</span>';
+    updateWeightLabel(b);
     if(v!=='Tag'){ setTagMsg(b,'info',''); R(b,'retWrap').classList.add('hide'); }
   });
   b.querySelector('.rm').addEventListener('click', ()=>{ b.remove(); renumber(); });
@@ -602,6 +602,13 @@ function refreshAllDesigns(){ document.querySelectorAll('.item').forEach(refresh
 function isDiamondCounterSelected(){
   return togVal($('tglFrom'))==='Retail' && $('counter').value==='Diamond Counter';
 }
+// Diamond Counter merge: Gross/Net Wt already cover the weight (blank Weight falls back to Net Wt on the
+// server), so it isn't required there — no star, and not validated as mandatory.
+function updateWeightLabel(b){
+  const tagVal = togVal(R(b,'tagst'));
+  const base = tagVal==='Tag' ? 'Weight (gm)' : 'Total weight (gm)';
+  R(b,'wtLbl').innerHTML = base + (isDiamondCounterSelected() ? '' : ' <span class="req">★</span>');
+}
 function applyDiamondCounterLock(b){
   const locked = isDiamondCounterSelected();
   R(b,'typeWrap').classList.toggle('hide', locked);
@@ -627,6 +634,7 @@ function applyDiamondCounterLock(b){
     const grossNetWrap = R(b,'diaGrossNetWrap');
     if(grossNetWrap.parentElement !== diaBody) diaBody.insertBefore(grossNetWrap, diaBody.firstChild);
   }
+  updateWeightLabel(b);
 }
 function applyDiamondCounterLockAll(){ document.querySelectorAll('.item').forEach(applyDiamondCounterLock); }
 function productNameOf(b){
@@ -796,11 +804,11 @@ function collect(){
       row.gross = K(b,'gross').value.trim(); row.net = K(b,'net').value.trim();
       row.carat = K(b,'carat').value.trim(); row.clarity = K(b,'clarity').value; row.color = K(b,'color').value; row.certNo = K(b,'certNo').value.trim();
       if(merged){
-        // Diamond Counter merge: Design/Tunch/Weight come from goldBox instead of the (hidden) diaTunch field.
+        // Diamond Counter merge: Design/Tunch come from goldBox; Weight is optional here (Gross/Net Wt
+        // already cover it — blank Weight falls back to Net Wt on the server).
         row.design = titleCase(pickVal(b,'design')); row.tunch = K(b,'tunch').value; row.weight = K(b,'weight').value.trim();
         if(!row.design) return e('Select / enter Design.');
         if(!row.tunch) return e('Select Tunch.');
-        if(!(parseFloat(row.weight)>0)) return e('Enter Weight.');
       } else {
         row.tunch = K(b,'diaTunch').value;
       }
