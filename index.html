@@ -273,6 +273,18 @@ function queueOffline(payload, header){
 }
 
 let __stockFlushInFlight = false;
+async function stockLogFailedFromItem(item, reason){
+  const p = item.payload || {};
+  const rows = p.rows || [{}];
+  for(const r of rows){
+    try{
+      await fetchT(SCRIPT_URL, {method:'POST', body: JSON.stringify({
+        action:'logFailedEntry', tagNo: r.tagNo||'', productName: r.productName||'', type: r.type||'',
+        employeeName: p.enteredBy||'', entryDate: p.entryDate||'', reason: reason
+      })}, 20000);
+    }catch(e){}
+  }
+}
 async function flushOfflineQueue(silent){
   if(!navigator.onLine) return;
   if(__stockFlushInFlight) return;
@@ -284,12 +296,18 @@ async function flushOfflineQueue(silent){
     showOverlay('Syncing offline items…', true);
     const remaining = [];
     let synced = 0;
+    let failedPermanently = 0;
     let done = 0;
     for(const item of q){
       try{
         const res = await fetchT(SCRIPT_URL, {method:'POST', body: JSON.stringify(item.payload)}, 60000).then(r=>r.json());
         if(res && res.ok) synced++;
-        else remaining.push(item);
+        else if(res && /^Duplicate/.test(String(res.error||''))){
+          // A duplicate/already-sold rejection will never succeed by retrying — log it for any admin to
+          // see and clear, instead of silently retrying it forever with no visible reason why it's stuck.
+          await stockLogFailedFromItem(item, res.error);
+          failedPermanently++;
+        } else remaining.push(item);
       }catch(e){ remaining.push(item); }
       done++; updateOverlayRing(done, q.length);
     }
@@ -297,6 +315,7 @@ async function flushOfflineQueue(silent){
     saveQueue(remaining.concat(stillQueued));
     updateConnStatus();
     if(synced>0) showBanner('ok', '✅ ' + synced + ' offline item(s) synced.' + (remaining.length? ' ' + remaining.length + ' still pending (will retry).' : ''));
+    else if(failedPermanently>0) showBanner('err', failedPermanently + ' offline item(s) could not be saved (duplicate tag) — an admin has been notified.');
     else if(remaining.length && !silent) showBanner('err', remaining.length + ' offline item(s) could not sync yet — will retry automatically.');
   } finally {
     hideOverlay();
