@@ -115,8 +115,8 @@
       </div>
     </div>
     <div class="filters" id="phWtRangeBox" style="display:none;">
-      <div><label>From Wt</label><input type="number" id="phWtFrom" min="0" max="100" step="any" placeholder="0" oninput="applyFiltersAndRender()"></div>
-      <div><label>To Wt</label><input type="number" id="phWtTo" min="0" max="100" step="any" placeholder="100" oninput="applyFiltersAndRender()"></div>
+      <div><label>From Wt</label><select id="phWtFrom" onchange="applyFiltersAndRender()"><option value="">Any</option></select></div>
+      <div><label>To Wt</label><select id="phWtTo" onchange="applyFiltersAndRender()"><option value="">Any</option></select></div>
     </div>
     <div class="filters">
       <div class="full"><label>Search</label><input type="text" id="phQ" placeholder="Tag No or Product name..." autocomplete="off" oninput="applyFiltersAndRender()" onkeydown="if(event.key==='Enter')applyFiltersAndRender()"></div>
@@ -348,8 +348,22 @@ function renderFiltersFromData() {
 }
 
 // ---- Weight Range filter (BRO: "2 nundi 5 gr lopu items chupinchu ante, tick box, from wt/to wt,
-// aa rendu wt lopu unnavi matrame ravali") — BRO later: "LEDU ANTE DROP DOWN REMOVE CHEI. MANUAL ENTER
-// CHESTANU" — so From/To are plain number inputs the person types into directly, no dropdown at all. ----
+// aa rendu wt lopu unnavi matrame ravali") — BRO went back and forth (manual entry, then back to a
+// dropdown): final is "WT DROP DOWN IVU. 0 TO 100 IVU" — a fixed 0–100 dropdown (whole numbers) in BOTH
+// From and To; the actual filtering still just checks From <= item weight <= To, so an item's real
+// (decimal) weight matches fine against these whole-number bounds. ----
+const WT_RANGE_OPTIONS_HTML = (() => {
+  let html = '<option value="">Any</option>';
+  for (let i = 0; i <= 100; i++) html += `<option>${i}</option>`;
+  return html;
+})();
+function populateWtRangeOptions() {
+  const fromSel = document.getElementById('phWtFrom'), toSel = document.getElementById('phWtTo');
+  if (!fromSel || !toSel) return;
+  const keepFrom = fromSel.value, keepTo = toSel.value;
+  fromSel.innerHTML = WT_RANGE_OPTIONS_HTML; toSel.innerHTML = WT_RANGE_OPTIONS_HTML;
+  fromSel.value = keepFrom; toSel.value = keepTo;
+}
 function toggleWtRange() {
   const on = document.getElementById('phWtRangeOn').checked;
   document.getElementById('phWtRangeBox').style.display = on ? 'grid' : 'none';
@@ -652,6 +666,7 @@ function infoHtml(r) {
     `</table>`;
 }
 
+populateWtRangeOptions(); // fixed 0–100 list, doesn't need any data loaded first
 initApp();
 </script>
 </body>
