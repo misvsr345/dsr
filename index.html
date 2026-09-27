@@ -111,8 +111,8 @@
       </div>
     </div>
     <div class="filters" id="phWtRangeBox" style="display:none;">
-      <div><label>From Wt</label><select id="phWtFrom" onchange="applyFiltersAndRender()"><option value="">Any</option></select></div>
-      <div><label>To Wt</label><select id="phWtTo" onchange="applyFiltersAndRender()"><option value="">Any</option></select></div>
+      <div><label>From Wt</label><input type="number" id="phWtFrom" min="0" max="100" step="any" placeholder="0" oninput="applyFiltersAndRender()"></div>
+      <div><label>To Wt</label><input type="number" id="phWtTo" min="0" max="100" step="any" placeholder="100" oninput="applyFiltersAndRender()"></div>
     </div>
     <div class="filters">
       <div class="full"><label>Search</label><input type="text" id="phQ" placeholder="Tag No or Product name..." autocomplete="off" oninput="applyFiltersAndRender()" onkeydown="if(event.key==='Enter')applyFiltersAndRender()"></div>
@@ -345,12 +345,12 @@ function renderFiltersFromData() {
 
 // ---- Weight Range filter (BRO: "2 nundi 5 gr lopu items chupinchu ante, tick box, from wt/to wt
 // dropdown, aa rendu wt lopu unnavi matrame ravali") — BRO later: "WEIGHT DROP DOWN LO 0 TO 100 NUMBERS
-// RAVALI. RENDITLO NU RAVALI. FROM AND TO BOTH DROP DOWN LO RAVALI" — so this is now a fixed 0–100
-// range (in 0.1 steps, so decimals are there too) in BOTH From and To, not just whatever weights
-// happen to exist in the data — you can filter "2.5 to 15.8" even if no single item is exactly that. ----
+// RAVALI... DESIMAL VADDU, DIRECT ROUND NUMBERS 0 TO 100 VARAKU IVU" — a fixed 0–100 range of plain
+// whole numbers (no decimals) in BOTH From and To, not just whatever weights happen to exist in the
+// data — an item's actual (decimal) weight still matches fine against these whole-number bounds. ----
 const WT_RANGE_OPTIONS_HTML = (() => {
   let html = '<option value="">Any</option>';
-  for (let i = 0; i <= 1000; i++) html += `<option>${(i / 10).toFixed(1)}</option>`;
+  for (let i = 0; i <= 100; i++) html += `<option>${i}</option>`;
   return html;
 })();
 function populateWtRangeOptions() {
