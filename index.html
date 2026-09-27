@@ -6,17 +6,27 @@
 <title>VSR GOLD — Photos</title>
 <style>
   :root{
-    --purple:#4A0E8F; --purple-mid:#7B2FBE; --gold:#D4AF37;
-    --bg:#F7F3FB; --card:#ffffff; --border:#E2D9EE; --text:#241A33; --dmuted:#7D6E8C;
+    /* BRO: "purple kakunda vere darked ga unte color tho gold mix chesi ivu" — deep wine/maroon +
+       gold instead of purple, for this standalone file only (portal keeps its own normal colors). */
+    --purple:#3B0A14; --purple-mid:#6E1B2E; --gold:#D4AF37;
+    --bg:#FAF6EF; --card:#ffffff; --border:#E7DDC9; --text:#2A1712; --dmuted:#8A7B6C;
     --red:#C0392B; --green:#2E8B57;
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
-  header{background:var(--purple);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,.15);}
-  header .title{font-weight:800;font-size:17px;letter-spacing:.2px;}
-  header .title small{display:block;font-size:11px;font-weight:600;color:var(--gold);letter-spacing:.4px;}
+  /* BRO: "front page open avutundi kada, dani chuttu border ivu" — the landing/list page (this page,
+     not the photo viewer) gets a full border all the way round, like a boutique card. */
+  .frame{max-width:1000px;margin:0 auto;min-height:100vh;background:var(--card);border:1px solid var(--border);box-shadow:0 0 40px rgba(59,10,20,.10);}
+  header{background:var(--purple);color:#fff;padding:18px 16px 16px;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;position:sticky;top:0;z-index:10;box-shadow:0 2px 10px rgba(0,0,0,.18);border-bottom:3px solid var(--gold);}
+  header .brandline{display:flex;align-items:center;gap:2px;}
+  header .brandline::before,header .brandline::after{content:'';width:22px;height:1px;background:var(--gold);opacity:.7;}
+  header .title{font-weight:800;font-size:19px;letter-spacing:2.5px;padding:0 8px;}
+  header small{display:block;font-size:10.5px;font-weight:600;color:var(--gold);letter-spacing:1.6px;margin-top:5px;text-transform:uppercase;}
   .wrap{max-width:960px;margin:0 auto;padding:14px;}
   .card{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px;}
+  .brand-footer{border-top:3px solid var(--gold);background:var(--purple);color:#fff;text-align:center;padding:18px 16px 20px;margin-top:8px;}
+  .brand-footer .fname{font-weight:800;font-size:15px;letter-spacing:2px;}
+  .brand-footer .faddr{font-size:12px;color:#e6d9f5;margin-top:5px;line-height:1.5;}
   .filters{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}
   .filters .full{grid-column:1/-1;}
   label{display:block;font-size:11.5px;font-weight:700;color:var(--dmuted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px;}
@@ -32,25 +42,32 @@
   .loading{text-align:center;padding:30px 0;color:var(--dmuted);}
 
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;}
-  .tile{position:relative;aspect-ratio:1/1;border-radius:10px;overflow:hidden;border:1.5px solid var(--border);cursor:pointer;background:#f0eaf7;}
+  .tile{position:relative;aspect-ratio:1/1;border-radius:10px;overflow:hidden;border:1.5px solid var(--border);cursor:pointer;background:#F1E8D6;}
   .tile img{width:100%;height:100%;object-fit:cover;display:block;}
   .tile .pill{position:absolute;top:4px;left:4px;font-size:9px;font-weight:800;padding:2px 6px;border-radius:20px;color:#fff;letter-spacing:.3px;}
   .tile .tag{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;font-size:10.5px;font-weight:700;padding:12px 6px 4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .tile.tile-offline{background:#e8e2f0;}
+  .tile.tile-offline{background:#EAE0CB;}
   .tile.tile-offline::before{content:'📷';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:30px;opacity:.35;}
   #offlineBanner{display:none;background:#8a5a00;color:#fff;font-size:12px;font-weight:700;text-align:center;padding:7px 10px;}
 
   .overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:100;display:flex;align-items:center;justify-content:center;padding:0;}
   .stage-box{width:100%;height:100%;max-width:640px;max-height:100vh;background:#0c0c0c;position:relative;display:flex;flex-direction:column;}
   .close-x{position:absolute;top:8px;right:10px;z-index:6;background:rgba(255,255,255,.12);color:#fff;border:none;width:34px;height:34px;border-radius:50%;font-size:18px;cursor:pointer;}
-  .stage{position:relative;flex:1;display:flex;align-items:center;justify-content:center;touch-action:pan-y;overflow:hidden;min-height:0;}
-  .stage img{max-width:100%;max-height:100%;display:block;cursor:zoom-in;}
+  /* Stage height is FIXED (not "flex:1" sized off whatever else is on screen) so the photo frame stays
+     the exact same size photo to photo — BRO: "click cheste pedda size lo view vastundi, kani slide
+     chesinappudu malli size lo changes vastundi, so ala kakunda chudu". object-fit:contain then just
+     fits each photo, portrait or landscape, inside that same fixed frame instead of the frame itself
+     growing/shrinking. The info table below is now always shown (never toggled), which is the other
+     half of what caused the size jump — the stage no longer grows into the space the table used to free
+     up when it was hidden. */
+  .stage{position:relative;height:56vh;flex:0 0 auto;display:flex;align-items:center;justify-content:center;touch-action:pan-y;overflow:hidden;background:#000;}
+  .stage img{width:100%;height:100%;object-fit:contain;display:block;cursor:zoom-in;}
   .nav-btn{position:absolute;top:50%;transform:translateY(-50%);z-index:4;background:rgba(255,255,255,.14);color:#fff;border:none;width:38px;height:38px;border-radius:50%;font-size:16px;cursor:pointer;}
   .nav-btn.left{left:8px;} .nav-btn.right{right:8px;}
   .ctr-lbl{text-align:center;color:#ddd;font-size:11.5px;padding:8px 0;background:#0c0c0c;flex-shrink:0;}
-  .info-box{display:none;background:#fff;border-top:2px solid var(--gold);padding:10px 14px;max-height:38vh;overflow-y:auto;flex-shrink:0;}
-  table.info{width:100%;border-collapse:collapse;font-size:13px;}
-  table.info td{padding:6px 4px;border-bottom:1px dashed var(--border);}
+  .info-box{display:block;background:#fff;border-top:2px solid var(--gold);padding:8px 14px;max-height:26vh;overflow-y:auto;flex-shrink:0;}
+  table.info{width:100%;border-collapse:collapse;font-size:12.5px;}
+  table.info td{padding:5px 4px;border-bottom:1px dashed var(--border);}
   table.info td.lbl{color:var(--dmuted);font-weight:700;width:42%;}
   table.info td.val{font-weight:600;}
 
@@ -66,8 +83,10 @@
 </head>
 <body>
 
+<div class="frame">
 <header>
-  <div class="title">📷 VSR GOLD<small>Stock Photos</small></div>
+  <div class="brandline"><div class="title">VSR GOLD</div></div>
+  <small>Stock Photos</small>
 </header>
 <div id="offlineBanner">📴 Offline — showing saved photos</div>
 
@@ -105,6 +124,12 @@
   <div id="moreWrap" class="note"></div>
 </div>
 
+<footer class="brand-footer">
+  <div class="fname">VSR GOLD</div>
+  <div class="faddr" id="storeAddr"></div>
+</footer>
+</div><!-- /.frame -->
+
 <script>
 // ============================================================
 // VSR GOLD — Stock Photos viewer (standalone, GitHub-hosted).
@@ -125,9 +150,17 @@
 // PASTE your Stock Level Web App URL here (same one used by the main portal's STOCK_GAS_URL).
 const STOCK_GAS_URL = "https://script.google.com/macros/s/AKfycbyZR0GpuTCgy2ErrFO4DOyBaN2USByivHUxN1QOeR67mkRM0l_pcmnodBt41KF29Wi0/exec";
 
-const PH = { items: [], openIdx: -1, infoOpen: false, limit: 60 };
+// Store details shown in the footer at the bottom of the page.
+const STORE_ADDRESS_LINES = [
+  "Bada Bazar, Berhampur - 760002",
+  "Contact: 8117879916",
+  "www.vsrgold.com &nbsp;·&nbsp; vsrgold2025@gmail.com"
+];
+
+const PH = { items: [], openIdx: -1, limit: 60 };
 const VISIBLE = { count: 0 };
 let ALL_ITEMS = [];
+document.getElementById('storeAddr').innerHTML = STORE_ADDRESS_LINES.join('<br>');
 
 function escHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -270,9 +303,20 @@ function productKind(productName) {
   if (p.indexOf('ring') !== -1 && p.indexOf('ear') === -1) return 'ring'; // "Finger Ring", not "Ear Ring"
   return '';
 }
+// Plain numeric strings ("3", "16", "0.3") sort as real numbers so a dropdown of weights doesn't end up
+// as 0.3, 0.9, 0.16, 0.17... (BRO: "drop lo numbers wrong ga vastundi") — that happened because
+// localeCompare's "numeric" mode compares digit-RUNS the way version numbers do (splitting on the
+// decimal point), which is wrong for decimals: "0.3" vs "0.16" compared "3" against "16" and put 0.3
+// first. A mixed format like a bangle size "2/4" still isn't a plain number, so it keeps using
+// localeCompare's numeric mode, which is the right tool for that. ----
+function smartCompare(a, b) {
+  const isPlainNum = s => /^-?\d+(\.\d+)?$/.test(s.trim());
+  if (isPlainNum(a) && isPlainNum(b)) return parseFloat(a) - parseFloat(b);
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+}
 function uniqSorted(values) {
   return Array.from(new Set(values.map(v => String(v == null ? '' : v).trim()).filter(Boolean)))
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    .sort(smartCompare);
 }
 function scopeItems(status, counter, product) {
   return ALL_ITEMS.filter(r =>
@@ -296,19 +340,19 @@ function renderFiltersFromData() {
   const keepCounter = counterSel.value;
   const counters = uniqSorted(ALL_ITEMS.map(r => r.counter));
   counterSel.innerHTML = '<option value="">All</option>' + counters.map(c => `<option${c === keepCounter ? ' selected' : ''}>${escHtml(c)}</option>`).join('');
-  reloadProductOptions();
-  populateWtRangeOptions();
+  reloadProductOptions(); // cascades down into reloadDimFilters(), which also (re)populates the Weight Range options — see note there.
 }
 
 // ---- Weight Range filter (BRO: "2 nundi 5 gr lopu items chupinchu ante, tick box, from wt/to wt
-// dropdown, aa rendu wt lopu unnavi matrame ravali") — independent of the other filters, works off the
-// full weight list across all items, ANDs with whatever else is selected. ----
-function populateWtRangeOptions() {
+// dropdown, aa rendu wt lopu unnavi matrame ravali") — takes the weight list already scoped to whatever
+// Status/Counter/Product is picked (BRO: "filters select cheska, venta daniki related ga next option lo
+// data ravali" — the range list must follow the selection above it, not show every weight in the whole
+// catalog every time). ----
+function populateWtRangeOptions(weights) {
   const fromSel = document.getElementById('phWtFrom'), toSel = document.getElementById('phWtTo');
   if (!fromSel || !toSel) return;
   const keepFrom = fromSel.value, keepTo = toSel.value;
-  const weights = uniqSorted(ALL_ITEMS.map(r => r.weight)).filter(w => !isNaN(parseFloat(w)));
-  const opts = '<option value="">Any</option>' + weights.map(w => `<option>${escHtml(w)}</option>`).join('');
+  const opts = '<option value="">Any</option>' + (weights || []).filter(w => !isNaN(parseFloat(w))).map(w => `<option>${escHtml(w)}</option>`).join('');
   fromSel.innerHTML = opts; toSel.innerHTML = opts;
   fromSel.value = keepFrom; toSel.value = keepTo;
 }
@@ -329,13 +373,15 @@ function reloadDimFilters() {
   const status = document.getElementById('phStatus').value, counter = document.getElementById('phCounter').value;
   const product = document.getElementById('phProduct').value;
   const scoped = scopeItems(status, counter, product);
+  const weights = uniqSorted(scoped.map(r => r.weight));
   renderDimFilters({
     designs: uniqSorted(scoped.map(r => r.design)),
-    weights: uniqSorted(scoped.map(r => r.weight)),
+    weights: weights,
     lengths: uniqSorted(scoped.map(r => r.length)),
     bangleSizes: uniqSorted(scoped.map(r => r.bangleSize)),
     ringSizes: uniqSorted(scoped.map(r => r.ringSize))
   }, product);
+  populateWtRangeOptions(weights); // same Status/Counter/Product-scoped weight list, every time this cascade runs
 }
 function renderDimFilters(opts, product) {
   const wrap = document.getElementById('phDimFilters'); if (!wrap) return;
@@ -420,10 +466,11 @@ function hydrateVisibleImages() {
   });
 }
 
-// ---- Lightbox: tap a thumbnail -> big photo; swipe or ◀▶ -> next/prev; tap the photo itself ->
-// show/hide a small box with that item's Sheet data. ----
+// ---- Lightbox: tap a thumbnail -> big photo; swipe or ◀▶ -> next/prev. The item's Sheet data shows as
+// a small, fixed table under the photo at all times (BRO: "phto taluka data fix ga chinna table laga
+// chesi, kinda fix ga pettu") — no tap needed to reveal it, and it never disappears while sliding. ----
 function openViewer(idx) {
-  PH.openIdx = idx; PH.infoOpen = false;
+  PH.openIdx = idx;
   const old = document.getElementById('phModal'); if (old) old.remove();
   const div = document.createElement('div');
   div.id = 'phModal';
@@ -461,14 +508,13 @@ function keyNav(e) {
 function navPhoto(dir) {
   const n = PH.items.length; if (!n) return;
   PH.openIdx = (PH.openIdx + dir + n) % n;
-  PH.infoOpen = false; // sliding to a new photo always starts image-only
   if (window.__phResetZoom) window.__phResetZoom(); // new photo always starts at 1x
   renderStage();
 }
 
 // ---- Zoom / pan: mouse wheel / +− buttons / keyboard +− on desktop; pinch (2-finger) + double-tap
-// on touch. A single tap/click still toggles the small detail box — told apart from a double-tap with
-// a short timer. Swipe-to-next-photo only fires at 1x zoom; once zoomed in, one-finger drag pans. ----
+// on touch zoom the photo. Swipe-to-next-photo only fires at 1x zoom; once zoomed in, one-finger drag
+// pans instead of swiping to the next photo. ----
 function setupZoomPan() {
   const stage = document.getElementById('phStage');
   const img = document.getElementById('phStageImg');
@@ -477,7 +523,7 @@ function setupZoomPan() {
   let pinchStartDist = 0, pinchStartScale = 1;
   let dragging = false, dragStartX = 0, dragStartY = 0, dragOrigTx = 0, dragOrigTy = 0;
   let swipeStartX = null;
-  let tapTimer = null, lastTapAt = 0;
+  let lastTapAt = 0;
 
   const clampScale = s => Math.max(1, Math.min(4, s));
   const apply = () => { img.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`; img.style.cursor = scale > 1.01 ? 'grab' : 'zoom-in'; };
@@ -527,23 +573,16 @@ function setupZoomPan() {
       if (!wasDragging) {
         const now = Date.now();
         if (now - lastTapAt < 300) {
-          if (tapTimer) { clearTimeout(tapTimer); tapTimer = null; }
           scale = scale > 1.01 ? 1 : 2.5; if (scale <= 1.01) { tx = 0; ty = 0; } apply();
           lastTapAt = 0;
         } else {
           lastTapAt = now;
-          tapTimer = setTimeout(() => { toggleInfo(); tapTimer = null; }, 300);
         }
       }
     }
   }, { passive: true });
 
-  img.addEventListener('click', () => {
-    if (tapTimer) return;
-    tapTimer = setTimeout(() => { toggleInfo(); tapTimer = null; }, 260);
-  });
   img.addEventListener('dblclick', () => {
-    if (tapTimer) { clearTimeout(tapTimer); tapTimer = null; }
     scale = scale > 1.01 ? 1 : 2.5; if (scale <= 1.01) { tx = 0; ty = 0; } apply();
   });
 }
@@ -574,13 +613,6 @@ function toastMsg(msg) {
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 2200);
 }
-function toggleInfo() {
-  PH.infoOpen = !PH.infoOpen;
-  const box = document.getElementById('phInfoBox');
-  if (!box) return;
-  if (PH.infoOpen) { box.innerHTML = infoHtml(PH.items[PH.openIdx]); box.style.display = 'block'; }
-  else box.style.display = 'none';
-}
 async function renderStage() {
   const r = PH.items[PH.openIdx]; if (!r) return;
   const img = document.getElementById('phStageImg');
@@ -588,7 +620,9 @@ async function renderStage() {
   const box = document.getElementById('phInfoBox');
   img.removeAttribute('src'); img.alt = 'Loading...';
   lbl.textContent = (r.tagNo || r.productName || 'Item') + '  ·  ' + (PH.openIdx + 1) + ' / ' + PH.items.length + (r.status === 'sold' ? '  ·  SOLD' : '  ·  IN STOCK');
-  if (box) box.style.display = 'none';
+  // Fixed table, always shown, updates immediately — doesn't wait on the image (BRO: "phto taluka data
+  // fix ga chinna table laga chesi, kinda fix ga pettu").
+  if (box) box.innerHTML = infoHtml(r);
   const src = await resolveImgSrc(r.photo);
   // the person may have swiped to a different photo while this one was still downloading
   if (PH.items[PH.openIdx] !== r) return;
