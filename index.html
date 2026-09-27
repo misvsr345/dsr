@@ -70,6 +70,10 @@
   table.info td{padding:5px 4px;border-bottom:1px dashed var(--border);}
   table.info td.lbl{color:var(--dmuted);font-weight:700;width:42%;}
   table.info td.val{font-weight:600;}
+  /* BRO: "TAG NO AND LENTH KODDIGA HILITE AVALI. BANGLE SIZE, RING SIZE KUDA BOLD AVALI" */
+  table.info tr.hl td{background:rgba(212,175,55,.14);}
+  table.info tr.hl td.lbl{color:var(--purple);font-weight:800;}
+  table.info tr.hl td.val{font-weight:800;color:var(--purple);}
 
   /* Tablet / larger screens: the lightbox gets real room to breathe instead of stretching a small
      photo edge-to-edge — BRO: "tablet size screen ki image fit avali". */
@@ -343,23 +347,9 @@ function renderFiltersFromData() {
   reloadProductOptions(); // cascades down into reloadDimFilters(), which also (re)populates the Weight Range options — see note there.
 }
 
-// ---- Weight Range filter (BRO: "2 nundi 5 gr lopu items chupinchu ante, tick box, from wt/to wt
-// dropdown, aa rendu wt lopu unnavi matrame ravali") — BRO later: "WEIGHT DROP DOWN LO 0 TO 100 NUMBERS
-// RAVALI... DESIMAL VADDU, DIRECT ROUND NUMBERS 0 TO 100 VARAKU IVU" — a fixed 0–100 range of plain
-// whole numbers (no decimals) in BOTH From and To, not just whatever weights happen to exist in the
-// data — an item's actual (decimal) weight still matches fine against these whole-number bounds. ----
-const WT_RANGE_OPTIONS_HTML = (() => {
-  let html = '<option value="">Any</option>';
-  for (let i = 0; i <= 100; i++) html += `<option>${i}</option>`;
-  return html;
-})();
-function populateWtRangeOptions() {
-  const fromSel = document.getElementById('phWtFrom'), toSel = document.getElementById('phWtTo');
-  if (!fromSel || !toSel) return;
-  const keepFrom = fromSel.value, keepTo = toSel.value;
-  fromSel.innerHTML = WT_RANGE_OPTIONS_HTML; toSel.innerHTML = WT_RANGE_OPTIONS_HTML;
-  fromSel.value = keepFrom; toSel.value = keepTo;
-}
+// ---- Weight Range filter (BRO: "2 nundi 5 gr lopu items chupinchu ante, tick box, from wt/to wt,
+// aa rendu wt lopu unnavi matrame ravali") — BRO later: "LEDU ANTE DROP DOWN REMOVE CHEI. MANUAL ENTER
+// CHESTANU" — so From/To are plain number inputs the person types into directly, no dropdown at all. ----
 function toggleWtRange() {
   const on = document.getElementById('phWtRangeOn').checked;
   document.getElementById('phWtRangeBox').style.display = on ? 'grid' : 'none';
@@ -384,8 +374,6 @@ function reloadDimFilters() {
     bangleSizes: uniqSorted(scoped.map(r => r.bangleSize)),
     ringSizes: uniqSorted(scoped.map(r => r.ringSize))
   }, product);
-  // Weight Range is a fixed 0–100 list (see WT_RANGE_OPTIONS_HTML) — it doesn't need rebuilding per
-  // Counter/Product like the other dim filters, only populated once at load (see initApp/DOMContentLoaded).
 }
 function renderDimFilters(opts, product) {
   const wrap = document.getElementById('phDimFilters'); if (!wrap) return;
@@ -635,24 +623,35 @@ async function renderStage() {
 function infoHtml(r) {
   if (!r) return '';
   const isDia = r.type === 'Diamond';
+  // BRO: "denikaite lenth undo adi select chesinapudu matrame lenth box ravali. ring size or bangle
+  // size kuda same" — only whichever ONE of Length / Bangle Size / Ring Size actually applies to this
+  // item's product shows up, same as the filter dropdowns already do.
+  const kind = productKind(r.productName);
+  let sizeRow = null;
+  if (kind === 'chain' && r.length) sizeRow = ['Length', r.length, true];
+  else if (kind === 'bangle' && r.bangleSize) sizeRow = ['Bangle Size', r.bangleSize, true];
+  else if (kind === 'ring' && r.ringSize) sizeRow = ['Ring Size', r.ringSize, true];
+  // BRO: "TYPE VADDULE, PRODUCT FROM KUDA NO NEED" — dropped both; "TAG NO AND LENTH KODDIGA HILITE
+  // AVALI, BANGLE SIZE RING SIZE KUDA BOLD AVALI" — Tag No and whichever size field applies get the
+  // highlighted/bold treatment (the 3rd item in each row below).
   const rows = [
-    ['Type', r.type], ['Tag No', r.tagNo || '—'], ['Product', r.productName],
+    ['Tag No', r.tagNo || '—', true], ['Product', r.productName],
     !isDia ? ['Design', r.design] : null, !isDia ? ['Tunch', r.tunch] : null,
     !isDia ? ['Weight (gm)', r.weight] : null,
     isDia ? ['Gross Wt', r.gross] : null, isDia ? ['Net Wt', r.net] : null,
     isDia ? ['Carat', r.carat] : null, isDia ? ['Clarity', r.clarity] : null, isDia ? ['Color', r.color] : null,
-    ['Product From', r.productFrom === 'Main' ? 'Main (Hub)' : r.productFrom], ['Counter', r.counter],
+    sizeRow,
+    ['Counter', r.counter],
     r.status === 'sold' ? ['DSR / Outlet ID', r.dsrId] : null,
     r.status === 'sold' ? ['Sold Date', fmtDMY(r.soldDate)] : null,
     r.status === 'sold' ? ['Sold By', r.soldBy] : null,
     r.status === 'sold' ? ['Payment Status', r.payStatus] : null
   ].filter(Boolean);
   return `<table class="info">` +
-    rows.map(([l, v]) => `<tr><td class="lbl">${escHtml(l)}</td><td class="val">${escHtml(v == null || v === '' ? '—' : v)}</td></tr>`).join('') +
+    rows.map(([l, v, hl]) => `<tr${hl ? ' class="hl"' : ''}><td class="lbl">${escHtml(l)}</td><td class="val">${escHtml(v == null || v === '' ? '—' : v)}</td></tr>`).join('') +
     `</table>`;
 }
 
-populateWtRangeOptions(); // fixed 0–100 list, doesn't need any data loaded first
 initApp();
 </script>
 </body>
