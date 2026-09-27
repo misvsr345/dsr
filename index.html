@@ -32,6 +32,20 @@
   label{display:block;font-size:11.5px;font-weight:700;color:var(--dmuted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px;}
   select,input[type=text]{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;background:#fff;color:var(--text);}
   select:focus,input:focus{outline:none;border-color:var(--purple-mid);}
+  /* BRO: "ALL DROP DOWN KUDA KODDIGA RICH IVU" — gold-accented selects with a custom arrow, instead of
+     the plain browser default. */
+  select{
+    appearance:none; -webkit-appearance:none; -moz-appearance:none;
+    border:1.5px solid var(--gold); font-weight:700; cursor:pointer;
+    padding-right:34px;
+    background-color:#fff;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%233B0A14' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 12px center; background-size:11px 7px;
+    box-shadow:0 1px 3px rgba(59,10,20,.08);
+    transition:border-color .15s, box-shadow .15s;
+  }
+  select:hover{border-color:var(--purple-mid);}
+  select:focus{border-color:var(--purple-mid);box-shadow:0 0 0 3px rgba(110,27,46,.14);}
   .btn{width:100%;padding:12px;border:none;border-radius:10px;background:var(--purple);color:#fff;font-weight:800;font-size:14.5px;cursor:pointer;letter-spacing:.2px;}
   .btn:active{background:var(--purple-mid);}
   .btn-sec{background:#fff;color:var(--purple);border:1.5px solid var(--purple);}
@@ -49,6 +63,7 @@
   .tile.tile-offline{background:#EAE0CB;}
   .tile.tile-offline::before{content:'📷';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:30px;opacity:.35;}
   #offlineBanner{display:none;background:#8a5a00;color:#fff;font-size:12px;font-weight:700;text-align:center;padding:7px 10px;}
+  #syncBanner{display:none;background:var(--purple-mid);color:#fff;font-size:12px;font-weight:700;text-align:center;padding:7px 10px;}
 
   .overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:100;display:flex;align-items:center;justify-content:center;padding:0;}
   .stage-box{width:100%;height:100%;max-width:640px;max-height:100vh;background:#0c0c0c;position:relative;display:flex;flex-direction:column;}
@@ -93,6 +108,7 @@
   <small>Stock Photos</small>
 </header>
 <div id="offlineBanner">📴 Offline — showing saved photos</div>
+<div id="syncBanner"></div>
 
 <div class="wrap">
   <div class="card">
@@ -247,6 +263,58 @@ async function resolveImgSrc(photo) {
   return null;
 }
 
+// Full offline save (BRO: "offline lo local save avali, once save ayyaka cache nundi data tisukovali")
+// — resolveImgSrc above only ever caches a photo once you've actually opened/scrolled to it, so if the
+// phone goes offline before every item has been viewed, some photos would still be missing. This walks
+// the WHOLE catalog in the background (a few downloads at a time, so the UI stays responsive) and saves
+// every photo that isn't cached yet, so the next time the app opens with no signal, everything — item
+// data AND every photo — comes straight from local storage, not just whatever was already looked at.
+let PREFETCH_RUNNING = false;
+async function prefetchAllImages() {
+  if (PREFETCH_RUNNING) return;
+  PREFETCH_RUNNING = true;
+  const banner = document.getElementById('syncBanner');
+  try {
+    const items = ALL_ITEMS.filter(r => r.photo);
+    let idx = 0, done = 0, savedNew = 0;
+    const showProgress = () => {
+      if (!banner || !navigator.onLine) return;
+      if (savedNew > 0 && done < items.length) {
+        banner.style.display = 'block';
+        banner.textContent = `Saving photos for offline use... ${done}/${items.length}`;
+      }
+    };
+    async function worker() {
+      while (idx < items.length) {
+        if (!navigator.onLine) return; // stop the moment we go offline; resume next time we're back online
+        const r = items[idx++];
+        const id = extractDriveId(r.photo);
+        if (id) {
+          const already = await idbGet('images', id);
+          if (!already) {
+            const urls = [`https://lh3.googleusercontent.com/d/${id}=w1000`, `https://drive.google.com/thumbnail?id=${id}&sz=w1000`];
+            for (const u of urls) {
+              try {
+                const resp = await fetch(u);
+                if (!resp.ok) continue;
+                const blob = await resp.blob();
+                await idbSet('images', id, blob);
+                savedNew++;
+                break;
+              } catch (e) {}
+            }
+          }
+        }
+        done++; showProgress();
+      }
+    }
+    await Promise.all([worker(), worker(), worker(), worker()]);
+  } finally {
+    PREFETCH_RUNNING = false;
+    if (banner) { banner.style.display = 'none'; banner.textContent = ''; }
+  }
+}
+
 function updateOnlineBanner() {
   const b = document.getElementById('offlineBanner');
   if (b) b.style.display = navigator.onLine ? 'none' : 'block';
@@ -277,6 +345,7 @@ async function refreshSnapshot() {
     idbSet('meta', 'snapshot', { rows, fetchedAt: Date.now() });
     renderFiltersFromData();
     applyFiltersAndRender();
+    prefetchAllImages(); // background — saves every photo locally, not just the ones actually opened
   } catch (e) {
     if (!ALL_ITEMS.length) {
       document.getElementById('grid').innerHTML = `<div class="empty">Could not load.</div>`;
@@ -656,10 +725,7 @@ function infoHtml(r) {
     isDia ? ['Carat', r.carat] : null, isDia ? ['Clarity', r.clarity] : null, isDia ? ['Color', r.color] : null,
     sizeRow,
     ['Counter', r.counter],
-    r.status === 'sold' ? ['DSR / Outlet ID', r.dsrId] : null,
-    r.status === 'sold' ? ['Sold Date', fmtDMY(r.soldDate)] : null,
-    r.status === 'sold' ? ['Sold By', r.soldBy] : null,
-    r.status === 'sold' ? ['Payment Status', r.payStatus] : null
+    r.status === 'sold' ? ['Sold Date', fmtDMY(r.soldDate)] : null
   ].filter(Boolean);
   return `<table class="info">` +
     rows.map(([l, v, hl]) => `<tr${hl ? ' class="hl"' : ''}><td class="lbl">${escHtml(l)}</td><td class="val">${escHtml(v == null || v === '' ? '—' : v)}</td></tr>`).join('') +
