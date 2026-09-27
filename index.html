@@ -36,6 +36,9 @@
   .tile img{width:100%;height:100%;object-fit:cover;display:block;}
   .tile .pill{position:absolute;top:4px;left:4px;font-size:9px;font-weight:800;padding:2px 6px;border-radius:20px;color:#fff;letter-spacing:.3px;}
   .tile .tag{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;font-size:10.5px;font-weight:700;padding:12px 6px 4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .tile.tile-offline{background:#e8e2f0;}
+  .tile.tile-offline::before{content:'📷';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:30px;opacity:.35;}
+  #offlineBanner{display:none;background:#8a5a00;color:#fff;font-size:12px;font-weight:700;text-align:center;padding:7px 10px;}
 
   .overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:100;display:flex;align-items:center;justify-content:center;padding:0;}
   .stage-box{width:100%;height:100%;max-width:640px;max-height:100vh;background:#0c0c0c;position:relative;display:flex;flex-direction:column;}
@@ -66,6 +69,7 @@
 <header>
   <div class="title">📷 VSR GOLD<small>Stock Photos</small></div>
 </header>
+<div id="offlineBanner">📴 Offline — showing saved photos</div>
 
 <div class="wrap">
   <div class="card">
@@ -82,9 +86,19 @@
     </div>
     <div class="filters" id="phDimFilters"><!-- Design + product-specific size filters (Chain: Wt/Length, Bangle/Sankha: Bangle Size, Finger Ring: Ring Size) fill in here once a Product is picked --></div>
     <div class="filters">
-      <div class="full"><label>Search</label><input type="text" id="phQ" placeholder="Tag No or Product name..." autocomplete="off" onkeydown="if(event.key==='Enter')loadPhotos(true)"></div>
+      <div class="full" style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        <input type="checkbox" id="phWtRangeOn" onchange="toggleWtRange()" style="width:18px;height:18px;margin:0;">
+        <label style="margin:0;text-transform:none;font-size:13.5px;color:var(--text);">Weight Range (gm)</label>
+      </div>
     </div>
-    <button class="btn" onclick="loadPhotos(true)">🔍 Show Photos</button>
+    <div class="filters" id="phWtRangeBox" style="display:none;">
+      <div><label>From Wt</label><select id="phWtFrom" onchange="applyFiltersAndRender()"><option value="">Any</option></select></div>
+      <div><label>To Wt</label><select id="phWtTo" onchange="applyFiltersAndRender()"><option value="">Any</option></select></div>
+    </div>
+    <div class="filters">
+      <div class="full"><label>Search</label><input type="text" id="phQ" placeholder="Tag No or Product name..." autocomplete="off" oninput="applyFiltersAndRender()" onkeydown="if(event.key==='Enter')applyFiltersAndRender()"></div>
+    </div>
+    <button class="btn" onclick="applyFiltersAndRender()">🔍 Show Photos</button>
   </div>
 
   <div id="grid" class="grid"></div>
@@ -96,13 +110,24 @@
 // VSR GOLD — Stock Photos viewer (standalone, GitHub-hosted).
 // Only job: browse the Stock/Sold photos already in the Stock Level Google Sheet, tap to view full
 // size, swipe/arrow to move between photos, tap the photo itself to show/hide that item's Sheet data.
-// Talks directly to the Stock Level Apps Script Web App below — no other file needed.
+// Talks directly to the Stock Level Apps Script Web App below.
+//
+// OFFLINE (BRO: "off line lo kuda kanipinchali, once load aindi malli load avakudadu"): the FULL photo
+// list is fetched ONCE per app open (paginating behind the scenes) and cached in IndexedDB, and every
+// filter/search after that is answered from that in-memory copy — no repeat server calls per filter
+// click. Each photo's image is also cached as a blob the first time it's actually viewed, so once
+// you've opened the app with internet at least once, both the item list and every photo you've already
+// looked at keep working with no internet at all. A background refresh runs on every open (and again
+// the moment you come back online) to pick up new stock, but the screen never waits on it — cached data
+// (if any) renders first, instantly.
 // ============================================================
 
 // PASTE your Stock Level Web App URL here (same one used by the main portal's STOCK_GAS_URL).
 const STOCK_GAS_URL = "https://script.google.com/macros/s/AKfycbyZR0GpuTCgy2ErrFO4DOyBaN2USByivHUxN1QOeR67mkRM0l_pcmnodBt41KF29Wi0/exec";
 
-const PH = { items: [], total: 0, offset: 0, limit: 60, openIdx: -1, infoOpen: false };
+const PH = { items: [], openIdx: -1, infoOpen: false, limit: 60 };
+const VISIBLE = { count: 0 };
+let ALL_ITEMS = [];
 
 function escHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -114,40 +139,130 @@ function fmtDMY(s) {
   const p = n => String(n).padStart(2, '0');
   return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear();
 }
+function normTag(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 function api(params) {
   const qs = Object.entries(params).map(([k, v]) => k + '=' + encodeURIComponent(v == null ? '' : v)).join('&');
   return fetch(STOCK_GAS_URL + '?' + qs).then(r => r.json());
 }
-// lh3.googleusercontent.com/d/{id}=w{size} — Google's own image CDN; renders directly as an <img src>
-// with no extra click, unlike drive.google.com/open or uc?export=view which often need one.
-function thumbUrl(photo, size) {
-  if (!photo) return '';
-  const m = String(photo).match(/[?&]id=([\w-]+)/) || String(photo).match(/\/d\/([\w-]+)/);
-  return m ? `https://lh3.googleusercontent.com/d/${m[1]}=w${size || 800}` : photo;
+
+// ---- IndexedDB: 'meta' store holds the one cached full item list; 'images' store holds one blob per
+// Drive file id (shared size for grid + lightbox, so a photo is only ever downloaded once). ----
+const IDB_NAME = 'vsrStockPhotosDB', IDB_VERSION = 1;
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('meta')) db.createObjectStore('meta');
+      if (!db.objectStoreNames.contains('images')) db.createObjectStore('images');
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
 }
-function altUrl(photo) {
-  if (!photo) return '';
-  const m = String(photo).match(/[?&]id=([\w-]+)/) || String(photo).match(/\/d\/([\w-]+)/);
-  return m ? `https://drive.google.com/thumbnail?id=${m[1]}&sz=w1400` : photo;
+async function idbGet(store, key) {
+  try {
+    const db = await idbOpen();
+    return await new Promise((resolve, reject) => {
+      const rq = db.transaction(store, 'readonly').objectStore(store).get(key);
+      rq.onsuccess = () => resolve(rq.result);
+      rq.onerror = () => reject(rq.error);
+    });
+  } catch (e) { return undefined; }
+}
+async function idbSet(store, key, val) {
+  try {
+    const db = await idbOpen();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(store, 'readwrite');
+      tx.objectStore(store).put(val, key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (e) { return false; }
 }
 
-async function ensureCounters() {
+function extractDriveId(photo) {
+  if (!photo) return null;
+  const m = String(photo).match(/[?&]id=([\w-]+)/) || String(photo).match(/\/d\/([\w-]+)/);
+  return m ? m[1] : null;
+}
+// Cache-first image loader: reused blob if we've already downloaded this photo (works fully offline);
+// otherwise fetches it once (trying two Google CDN URL forms) and caches the blob for next time. When
+// offline and never cached, resolves null so the tile can show a "not available offline" placeholder
+// instead of a broken image.
+async function resolveImgSrc(photo) {
+  const id = extractDriveId(photo);
+  if (!id) return photo || null;
+  const cached = await idbGet('images', id);
+  if (cached) return URL.createObjectURL(cached);
+  if (!navigator.onLine) return null;
+  const urls = [`https://lh3.googleusercontent.com/d/${id}=w1000`, `https://drive.google.com/thumbnail?id=${id}&sz=w1000`];
+  for (const u of urls) {
+    try {
+      const resp = await fetch(u);
+      if (!resp.ok) continue;
+      const blob = await resp.blob();
+      idbSet('images', id, blob);
+      return URL.createObjectURL(blob);
+    } catch (e) {}
+  }
+  return null;
+}
+
+function updateOnlineBanner() {
+  const b = document.getElementById('offlineBanner');
+  if (b) b.style.display = navigator.onLine ? 'none' : 'block';
+}
+window.addEventListener('online', () => { updateOnlineBanner(); refreshSnapshot(); });
+window.addEventListener('offline', updateOnlineBanner);
+
+// Pulls every photographed item (Stock + Sold) in pages behind the scenes, so the rest of the app can
+// treat it as one flat, already-fetched array.
+async function fetchFullSnapshot() {
+  let offset = 0, total = Infinity, rows = [];
+  while (offset < total && rows.length < 8000) {
+    const res = await api({ action: 'photoGallery', status: 'all', limit: 300, offset });
+    if (!res || !res.ok) throw new Error((res && res.error) || 'Could not load photos.');
+    total = res.total || 0;
+    const got = res.rows || [];
+    rows = rows.concat(got);
+    offset += got.length;
+    if (!got.length) break;
+  }
+  return rows;
+}
+async function refreshSnapshot() {
+  if (!navigator.onLine) return;
   try {
-    const res = await api({ action: 'meta' });
-    if (res && res.ok) {
-      const sel = document.getElementById('phCounter');
-      const names = (res.counters || []).concat(res.mainHub ? [res.mainHub] : []);
-      sel.innerHTML = '<option value="">All</option>' + names.map(n => `<option>${escHtml(n)}</option>`).join('');
+    const rows = await fetchFullSnapshot();
+    ALL_ITEMS = rows;
+    idbSet('meta', 'snapshot', { rows, fetchedAt: Date.now() });
+    renderFiltersFromData();
+    applyFiltersAndRender();
+  } catch (e) {
+    if (!ALL_ITEMS.length) {
+      document.getElementById('grid').innerHTML = `<div class="empty">Could not load photos (${escHtml(e && e.message ? e.message : e)}). Connect to the internet once to load photos for offline use.</div>`;
     }
-  } catch (e) {}
+  }
+}
+async function initApp() {
+  updateOnlineBanner();
+  const cached = await idbGet('meta', 'snapshot');
+  if (cached && cached.rows && cached.rows.length) {
+    ALL_ITEMS = cached.rows;
+    renderFiltersFromData();
+    applyFiltersAndRender();
+  } else {
+    document.getElementById('grid').innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
+  }
+  refreshSnapshot();
 }
 
 // ---- Cascading filters (BRO: "counter select cheste aa counter lo unnavi matrame Product list lo
 // ravali; Chain select cheste Weight/Length, Bangle/Sankha select cheste Bangle Size, Finger Ring
-// select cheste Finger Size adagali") ----
-// Counter/Status change -> reload the Product list (scoped to them) and clear the Product-specific
-// filters below it. Product change -> reload just the Design + size filter(s) that apply to THAT
-// product, scoped to the Counter/Status/Product already chosen.
+// select cheste Finger Size adagali") — computed straight from ALL_ITEMS in memory, so this keeps
+// working offline too, with no server round trip per filter change. ----
 function productKind(productName) {
   const p = String(productName || '').toLowerCase();
   if (p.indexOf('chain') !== -1) return 'chain';
@@ -155,89 +270,154 @@ function productKind(productName) {
   if (p.indexOf('ring') !== -1 && p.indexOf('ear') === -1) return 'ring'; // "Finger Ring", not "Ear Ring"
   return '';
 }
-async function filtersChanged(which) {
-  if (which === 'status' || which === 'counter') {
-    await loadProductOptions();
-    document.getElementById('phProduct').value = '';
-    await loadDimFilterOptions('');
-  } else if (which === 'product') {
-    await loadDimFilterOptions(document.getElementById('phProduct').value);
-  }
-  loadPhotos(true);
+function uniqSorted(values) {
+  return Array.from(new Set(values.map(v => String(v == null ? '' : v).trim()).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 }
-async function loadProductOptions() {
+function scopeItems(status, counter, product) {
+  return ALL_ITEMS.filter(r =>
+    (status === 'all' || r.status === status) &&
+    (!counter || (r.counter || '').trim() === counter) &&
+    (!product || (r.productName || '').trim() === product)
+  );
+}
+function filtersChanged(which) {
+  if (which === 'status' || which === 'counter') {
+    reloadProductOptions();
+    document.getElementById('phProduct').value = '';
+    reloadDimFilters();
+  } else if (which === 'product') {
+    reloadDimFilters();
+  }
+  applyFiltersAndRender();
+}
+function renderFiltersFromData() {
+  const counterSel = document.getElementById('phCounter');
+  const keepCounter = counterSel.value;
+  const counters = uniqSorted(ALL_ITEMS.map(r => r.counter));
+  counterSel.innerHTML = '<option value="">All</option>' + counters.map(c => `<option${c === keepCounter ? ' selected' : ''}>${escHtml(c)}</option>`).join('');
+  reloadProductOptions();
+  populateWtRangeOptions();
+}
+
+// ---- Weight Range filter (BRO: "2 nundi 5 gr lopu items chupinchu ante, tick box, from wt/to wt
+// dropdown, aa rendu wt lopu unnavi matrame ravali") — independent of the other filters, works off the
+// full weight list across all items, ANDs with whatever else is selected. ----
+function populateWtRangeOptions() {
+  const fromSel = document.getElementById('phWtFrom'), toSel = document.getElementById('phWtTo');
+  if (!fromSel || !toSel) return;
+  const keepFrom = fromSel.value, keepTo = toSel.value;
+  const weights = uniqSorted(ALL_ITEMS.map(r => r.weight)).filter(w => !isNaN(parseFloat(w)));
+  const opts = '<option value="">Any</option>' + weights.map(w => `<option>${escHtml(w)}</option>`).join('');
+  fromSel.innerHTML = opts; toSel.innerHTML = opts;
+  fromSel.value = keepFrom; toSel.value = keepTo;
+}
+function toggleWtRange() {
+  const on = document.getElementById('phWtRangeOn').checked;
+  document.getElementById('phWtRangeBox').style.display = on ? 'grid' : 'none';
+  applyFiltersAndRender();
+}
+function reloadProductOptions() {
   const sel = document.getElementById('phProduct'); if (!sel) return;
   const keep = sel.value;
-  try {
-    const res = await api({ action: 'photoFilters', status: document.getElementById('phStatus').value, counter: document.getElementById('phCounter').value });
-    if (res && res.ok) sel.innerHTML = '<option value="">All</option>' + (res.products || []).map(n => `<option${n === keep ? ' selected' : ''}>${escHtml(n)}</option>`).join('');
-  } catch (e) {}
+  const status = document.getElementById('phStatus').value, counter = document.getElementById('phCounter').value;
+  const products = uniqSorted(scopeItems(status, counter, '').map(r => r.productName));
+  sel.innerHTML = '<option value="">All</option>' + products.map(p => `<option${p === keep ? ' selected' : ''}>${escHtml(p)}</option>`).join('');
+  reloadDimFilters();
 }
-async function loadDimFilterOptions(product) {
-  let res = null;
-  try {
-    res = await api({ action: 'photoFilters', status: document.getElementById('phStatus').value, counter: document.getElementById('phCounter').value, product: product || '' });
-  } catch (e) {}
-  renderDimFilters((res && res.ok) ? res : {}, product);
+function reloadDimFilters() {
+  const status = document.getElementById('phStatus').value, counter = document.getElementById('phCounter').value;
+  const product = document.getElementById('phProduct').value;
+  const scoped = scopeItems(status, counter, product);
+  renderDimFilters({
+    designs: uniqSorted(scoped.map(r => r.design)),
+    weights: uniqSorted(scoped.map(r => r.weight)),
+    lengths: uniqSorted(scoped.map(r => r.length)),
+    bangleSizes: uniqSorted(scoped.map(r => r.bangleSize)),
+    ringSizes: uniqSorted(scoped.map(r => r.ringSize))
+  }, product);
 }
 function renderDimFilters(opts, product) {
   const wrap = document.getElementById('phDimFilters'); if (!wrap) return;
   const kind = productKind(product);
-  let html = `<div><label>Design</label><select id="phDesign" onchange="loadPhotos(true)"><option value="">All</option>${(opts.designs || []).map(d => `<option>${escHtml(d)}</option>`).join('')}</select></div>`;
+  let html = `<div><label>Design</label><select id="phDesign" onchange="applyFiltersAndRender()"><option value="">All</option>${(opts.designs || []).map(d => `<option>${escHtml(d)}</option>`).join('')}</select></div>`;
   if (kind === 'chain') {
-    html += `<div><label>Weight (gm)</label><select id="phWeight" onchange="loadPhotos(true)"><option value="">All</option>${(opts.weights || []).map(w => `<option>${escHtml(w)}</option>`).join('')}</select></div>`;
-    html += `<div><label>Length</label><select id="phLength" onchange="loadPhotos(true)"><option value="">All</option>${(opts.lengths || []).map(l => `<option>${escHtml(l)}</option>`).join('')}</select></div>`;
+    html += `<div><label>Weight (gm)</label><select id="phWeight" onchange="applyFiltersAndRender()"><option value="">All</option>${(opts.weights || []).map(w => `<option>${escHtml(w)}</option>`).join('')}</select></div>`;
+    html += `<div><label>Length</label><select id="phLength" onchange="applyFiltersAndRender()"><option value="">All</option>${(opts.lengths || []).map(l => `<option>${escHtml(l)}</option>`).join('')}</select></div>`;
   } else if (kind === 'bangle') {
-    html += `<div><label>Bangle Size</label><select id="phBangleSize" onchange="loadPhotos(true)"><option value="">All</option>${(opts.bangleSizes || []).map(b => `<option>${escHtml(b)}</option>`).join('')}</select></div>`;
+    html += `<div><label>Bangle Size</label><select id="phBangleSize" onchange="applyFiltersAndRender()"><option value="">All</option>${(opts.bangleSizes || []).map(b => `<option>${escHtml(b)}</option>`).join('')}</select></div>`;
   } else if (kind === 'ring') {
-    html += `<div><label>Finger Size</label><select id="phRingSize" onchange="loadPhotos(true)"><option value="">All</option>${(opts.ringSizes || []).map(r => `<option>${escHtml(r)}</option>`).join('')}</select></div>`;
+    html += `<div><label>Finger Size</label><select id="phRingSize" onchange="applyFiltersAndRender()"><option value="">All</option>${(opts.ringSizes || []).map(r => `<option>${escHtml(r)}</option>`).join('')}</select></div>`;
   }
   wrap.innerHTML = html;
 }
 
-async function loadPhotos(reset) {
-  const grid = document.getElementById('grid');
-  const moreWrap = document.getElementById('moreWrap');
-  if (reset) { PH.items = []; PH.offset = 0; PH.total = 0; grid.innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>'; }
-  moreWrap.innerHTML = reset ? '' : '<span class="spinner"></span>';
-  try {
-    const val = id => { const el = document.getElementById(id); return el ? el.value : ''; };
-    const res = await api({
-      action: 'photoGallery',
-      status: document.getElementById('phStatus').value,
-      counter: document.getElementById('phCounter').value,
-      product: val('phProduct'), design: val('phDesign'),
-      weight: val('phWeight'), length: val('phLength'), bangleSize: val('phBangleSize'), ringSize: val('phRingSize'),
-      q: document.getElementById('phQ').value.trim(),
-      limit: PH.limit, offset: PH.offset
-    });
-    if (reset) grid.innerHTML = '';
-    if (!res || !res.ok) { grid.innerHTML = `<div class="empty">${escHtml((res && res.error) || 'Could not load photos.')}</div>`; moreWrap.innerHTML = ''; return; }
-    PH.total = res.total || 0;
-    const rows = res.rows || [];
-    const startIdx = PH.items.length;
-    PH.items = PH.items.concat(rows);
-    PH.offset += rows.length;
-    if (!PH.items.length) { grid.innerHTML = '<div class="empty">No photos found for this filter.</div>'; moreWrap.innerHTML = ''; return; }
-    grid.insertAdjacentHTML('beforeend', rows.map((r, i) => tileHtml(r, startIdx + i)).join(''));
-    moreWrap.innerHTML = (PH.offset < PH.total)
-      ? `<button class="btn btn-sec" style="width:auto;padding:9px 22px;" onclick="loadPhotos(false)">Load more (${PH.items.length} of ${PH.total})</button>`
-      : `${PH.items.length} of ${PH.total} shown`;
-  } catch (e) {
-    if (reset) grid.innerHTML = `<div class="empty">Search failed: ${escHtml(e && e.message ? e.message : e)}</div>`;
-    moreWrap.innerHTML = '';
-  }
+// ---- Filtering + rendering, all local (instant, works offline) ----
+function currentFilters() {
+  const val = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  return {
+    status: document.getElementById('phStatus').value, counter: document.getElementById('phCounter').value,
+    product: val('phProduct'), design: val('phDesign'),
+    weight: val('phWeight'), length: val('phLength'), bangleSize: val('phBangleSize'), ringSize: val('phRingSize'),
+    wtRangeOn: document.getElementById('phWtRangeOn').checked,
+    wtFrom: val('phWtFrom'), wtTo: val('phWtTo'),
+    q: document.getElementById('phQ').value.trim().toUpperCase()
+  };
 }
+function filterItems(items, f) {
+  const wtFrom = f.wtRangeOn && f.wtFrom !== '' ? parseFloat(f.wtFrom) : null;
+  const wtTo = f.wtRangeOn && f.wtTo !== '' ? parseFloat(f.wtTo) : null;
+  return items.filter(r => {
+    if (f.status !== 'all' && r.status !== f.status) return false;
+    if (f.counter && (r.counter || '').trim() !== f.counter) return false;
+    if (f.product && (r.productName || '').trim() !== f.product) return false;
+    if (f.design && (r.design || '').trim() !== f.design) return false;
+    if (f.weight && String(r.weight || '').trim() !== f.weight) return false;
+    if (f.length && String(r.length || '').trim() !== f.length) return false;
+    if (f.bangleSize && String(r.bangleSize || '').trim() !== f.bangleSize) return false;
+    if (f.ringSize && String(r.ringSize || '').trim() !== f.ringSize) return false;
+    if (wtFrom != null || wtTo != null) {
+      const w = parseFloat(r.weight);
+      if (isNaN(w)) return false;
+      if (wtFrom != null && w < wtFrom) return false;
+      if (wtTo != null && w > wtTo) return false;
+    }
+    if (f.q && normTag(r.tagNo).indexOf(normTag(f.q)) === -1 && (r.productName || '').toUpperCase().indexOf(f.q) === -1) return false;
+    return true;
+  }).sort((a, b) => new Date(b.addedAt || 0) - new Date(a.addedAt || 0));
+}
+function applyFiltersAndRender() {
+  PH.items = filterItems(ALL_ITEMS, currentFilters());
+  VISIBLE.count = Math.min(PH.limit, PH.items.length);
+  renderGrid();
+}
+function renderGrid() {
+  const grid = document.getElementById('grid'), moreWrap = document.getElementById('moreWrap');
+  if (!PH.items.length) { grid.innerHTML = '<div class="empty">No photos found for this filter.</div>'; moreWrap.innerHTML = ''; return; }
+  grid.innerHTML = PH.items.slice(0, VISIBLE.count).map((r, i) => tileHtml(r, i)).join('');
+  hydrateVisibleImages();
+  moreWrap.innerHTML = (VISIBLE.count < PH.items.length)
+    ? `<button class="btn btn-sec" style="width:auto;padding:9px 22px;" onclick="loadMore()">Load more (${VISIBLE.count} of ${PH.items.length})</button>`
+    : `${PH.items.length} of ${PH.items.length} shown`;
+}
+function loadMore() { VISIBLE.count = Math.min(VISIBLE.count + PH.limit, PH.items.length); renderGrid(); }
 
 function tileHtml(r, idx) {
-  const src = thumbUrl(r.photo, 300);
   const pill = r.status === 'sold' ? '<span class="pill" style="background:var(--red);">SOLD</span>' : '<span class="pill" style="background:var(--green);">STOCK</span>';
   const label = r.tagNo || r.productName || 'Item';
-  return `<div class="tile" onclick="openViewer(${idx})">
-      <img src="${src}" loading="lazy" alt="${escHtml(label)}" onerror="this.closest('.tile').style.display='none';">
+  return `<div class="tile" data-photo="${escHtml(r.photo || '')}" onclick="openViewer(${idx})">
+      <img alt="${escHtml(label)}">
       ${pill}
       <div class="tag">${escHtml(label)}</div>
     </div>`;
+}
+function hydrateVisibleImages() {
+  document.querySelectorAll('#grid .tile[data-photo]').forEach(tile => {
+    const photo = tile.getAttribute('data-photo');
+    tile.removeAttribute('data-photo');
+    const img = tile.querySelector('img');
+    resolveImgSrc(photo).then(src => { if (src) img.src = src; else tile.classList.add('tile-offline'); });
+  });
 }
 
 // ---- Lightbox: tap a thumbnail -> big photo; swipe or ◀▶ -> next/prev; tap the photo itself ->
@@ -401,18 +581,18 @@ function toggleInfo() {
   if (PH.infoOpen) { box.innerHTML = infoHtml(PH.items[PH.openIdx]); box.style.display = 'block'; }
   else box.style.display = 'none';
 }
-function renderStage() {
+async function renderStage() {
   const r = PH.items[PH.openIdx]; if (!r) return;
   const img = document.getElementById('phStageImg');
   const lbl = document.getElementById('phCtrLbl');
   const box = document.getElementById('phInfoBox');
-  const full = thumbUrl(r.photo, 1400);
-  const alt = altUrl(r.photo);
-  let triedAlt = false;
-  img.onerror = () => { if (!triedAlt) { triedAlt = true; img.src = alt; } };
-  img.src = full;
+  img.removeAttribute('src'); img.alt = 'Loading...';
   lbl.textContent = (r.tagNo || r.productName || 'Item') + '  ·  ' + (PH.openIdx + 1) + ' / ' + PH.items.length + (r.status === 'sold' ? '  ·  SOLD' : '  ·  IN STOCK');
   if (box) box.style.display = 'none';
+  const src = await resolveImgSrc(r.photo);
+  // the person may have swiped to a different photo while this one was still downloading
+  if (PH.items[PH.openIdx] !== r) return;
+  if (src) img.src = src; else img.alt = '📷 Not downloaded yet — connect once to view this photo offline';
 }
 function infoHtml(r) {
   if (!r) return '';
@@ -424,7 +604,6 @@ function infoHtml(r) {
     isDia ? ['Gross Wt', r.gross] : null, isDia ? ['Net Wt', r.net] : null,
     isDia ? ['Carat', r.carat] : null, isDia ? ['Clarity', r.clarity] : null, isDia ? ['Color', r.color] : null,
     ['Product From', r.productFrom === 'Main' ? 'Main (Hub)' : r.productFrom], ['Counter', r.counter],
-    ['Entry', (r.entryType || '') + ' · ' + fmtDMY(r.entryDate)], ['Entered By', r.enteredBy],
     r.status === 'sold' ? ['DSR / Outlet ID', r.dsrId] : null,
     r.status === 'sold' ? ['Sold Date', fmtDMY(r.soldDate)] : null,
     r.status === 'sold' ? ['Sold By', r.soldBy] : null,
@@ -435,12 +614,7 @@ function infoHtml(r) {
     `</table>`;
 }
 
-(async () => {
-  await ensureCounters();
-  await loadProductOptions();
-  await loadDimFilterOptions('');
-  loadPhotos(true);
-})();
+initApp();
 </script>
 </body>
 </html>
