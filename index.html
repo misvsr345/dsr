@@ -1,1 +1,446 @@
-sf
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VSR GOLD — Photos</title>
+<style>
+  :root{
+    --purple:#4A0E8F; --purple-mid:#7B2FBE; --gold:#D4AF37;
+    --bg:#F7F3FB; --card:#ffffff; --border:#E2D9EE; --text:#241A33; --dmuted:#7D6E8C;
+    --red:#C0392B; --green:#2E8B57;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
+  header{background:var(--purple);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,.15);}
+  header .title{font-weight:800;font-size:17px;letter-spacing:.2px;}
+  header .title small{display:block;font-size:11px;font-weight:600;color:var(--gold);letter-spacing:.4px;}
+  .wrap{max-width:960px;margin:0 auto;padding:14px;}
+  .card{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px;}
+  .filters{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}
+  .filters .full{grid-column:1/-1;}
+  label{display:block;font-size:11.5px;font-weight:700;color:var(--dmuted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px;}
+  select,input[type=text]{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;background:#fff;color:var(--text);}
+  select:focus,input:focus{outline:none;border-color:var(--purple-mid);}
+  .btn{width:100%;padding:12px;border:none;border-radius:10px;background:var(--purple);color:#fff;font-weight:800;font-size:14.5px;cursor:pointer;letter-spacing:.2px;}
+  .btn:active{background:var(--purple-mid);}
+  .btn-sec{background:#fff;color:var(--purple);border:1.5px solid var(--purple);}
+  .note{font-size:12px;color:var(--dmuted);text-align:center;padding:6px 0;}
+  .empty{text-align:center;padding:40px 16px;color:var(--dmuted);}
+  .spinner{display:inline-block;width:16px;height:16px;border:2.5px solid var(--border);border-top-color:var(--purple);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .loading{text-align:center;padding:30px 0;color:var(--dmuted);}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;}
+  .tile{position:relative;aspect-ratio:1/1;border-radius:10px;overflow:hidden;border:1.5px solid var(--border);cursor:pointer;background:#f0eaf7;}
+  .tile img{width:100%;height:100%;object-fit:cover;display:block;}
+  .tile .pill{position:absolute;top:4px;left:4px;font-size:9px;font-weight:800;padding:2px 6px;border-radius:20px;color:#fff;letter-spacing:.3px;}
+  .tile .tag{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;font-size:10.5px;font-weight:700;padding:12px 6px 4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:100;display:flex;align-items:center;justify-content:center;padding:0;}
+  .stage-box{width:100%;height:100%;max-width:640px;max-height:100vh;background:#0c0c0c;position:relative;display:flex;flex-direction:column;}
+  .close-x{position:absolute;top:8px;right:10px;z-index:6;background:rgba(255,255,255,.12);color:#fff;border:none;width:34px;height:34px;border-radius:50%;font-size:18px;cursor:pointer;}
+  .stage{position:relative;flex:1;display:flex;align-items:center;justify-content:center;touch-action:pan-y;overflow:hidden;min-height:0;}
+  .stage img{max-width:100%;max-height:100%;display:block;cursor:zoom-in;}
+  .nav-btn{position:absolute;top:50%;transform:translateY(-50%);z-index:4;background:rgba(255,255,255,.14);color:#fff;border:none;width:38px;height:38px;border-radius:50%;font-size:16px;cursor:pointer;}
+  .nav-btn.left{left:8px;} .nav-btn.right{right:8px;}
+  .ctr-lbl{text-align:center;color:#ddd;font-size:11.5px;padding:8px 0;background:#0c0c0c;flex-shrink:0;}
+  .info-box{display:none;background:#fff;border-top:2px solid var(--gold);padding:10px 14px;max-height:38vh;overflow-y:auto;flex-shrink:0;}
+  table.info{width:100%;border-collapse:collapse;font-size:13px;}
+  table.info td{padding:6px 4px;border-bottom:1px dashed var(--border);}
+  table.info td.lbl{color:var(--dmuted);font-weight:700;width:42%;}
+  table.info td.val{font-weight:600;}
+
+  /* Tablet / larger screens: the lightbox gets real room to breathe instead of stretching a small
+     photo edge-to-edge — BRO: "tablet size screen ki image fit avali". */
+  @media (min-width:600px){ .filters{grid-template-columns:1fr 1fr 1fr;} }
+  @media (min-width:768px){
+    .overlay{padding:24px;}
+    .stage-box{max-width:820px;max-height:92vh;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+  }
+  @media (min-width:1100px){ .stage-box{max-width:960px;} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title">📷 VSR GOLD<small>Stock Photos</small></div>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <div class="filters">
+      <div><label>Show</label>
+        <select id="phStatus" onchange="filtersChanged('status')">
+          <option value="instock">In Stock only</option>
+          <option value="sold">Sold only</option>
+          <option value="all" selected>All (In Stock + Sold)</option>
+        </select>
+      </div>
+      <div><label>Counter</label><select id="phCounter" onchange="filtersChanged('counter')"><option value="">All</option></select></div>
+      <div><label>Product</label><select id="phProduct" onchange="filtersChanged('product')"><option value="">All</option></select></div>
+    </div>
+    <div class="filters" id="phDimFilters"><!-- Design + product-specific size filters (Chain: Wt/Length, Bangle/Sankha: Bangle Size, Finger Ring: Ring Size) fill in here once a Product is picked --></div>
+    <div class="filters">
+      <div class="full"><label>Search</label><input type="text" id="phQ" placeholder="Tag No or Product name..." autocomplete="off" onkeydown="if(event.key==='Enter')loadPhotos(true)"></div>
+    </div>
+    <button class="btn" onclick="loadPhotos(true)">🔍 Show Photos</button>
+  </div>
+
+  <div id="grid" class="grid"></div>
+  <div id="moreWrap" class="note"></div>
+</div>
+
+<script>
+// ============================================================
+// VSR GOLD — Stock Photos viewer (standalone, GitHub-hosted).
+// Only job: browse the Stock/Sold photos already in the Stock Level Google Sheet, tap to view full
+// size, swipe/arrow to move between photos, tap the photo itself to show/hide that item's Sheet data.
+// Talks directly to the Stock Level Apps Script Web App below — no other file needed.
+// ============================================================
+
+// PASTE your Stock Level Web App URL here (same one used by the main portal's STOCK_GAS_URL).
+const STOCK_GAS_URL = "https://script.google.com/macros/s/AKfycbyZR0GpuTCgy2ErrFO4DOyBaN2USByivHUxN1QOeR67mkRM0l_pcmnodBt41KF29Wi0/exec";
+
+const PH = { items: [], total: 0, offset: 0, limit: 60, openIdx: -1, infoOpen: false };
+
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function fmtDMY(s) {
+  if (!s) return '—';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return String(s);
+  const p = n => String(n).padStart(2, '0');
+  return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear();
+}
+function api(params) {
+  const qs = Object.entries(params).map(([k, v]) => k + '=' + encodeURIComponent(v == null ? '' : v)).join('&');
+  return fetch(STOCK_GAS_URL + '?' + qs).then(r => r.json());
+}
+// lh3.googleusercontent.com/d/{id}=w{size} — Google's own image CDN; renders directly as an <img src>
+// with no extra click, unlike drive.google.com/open or uc?export=view which often need one.
+function thumbUrl(photo, size) {
+  if (!photo) return '';
+  const m = String(photo).match(/[?&]id=([\w-]+)/) || String(photo).match(/\/d\/([\w-]+)/);
+  return m ? `https://lh3.googleusercontent.com/d/${m[1]}=w${size || 800}` : photo;
+}
+function altUrl(photo) {
+  if (!photo) return '';
+  const m = String(photo).match(/[?&]id=([\w-]+)/) || String(photo).match(/\/d\/([\w-]+)/);
+  return m ? `https://drive.google.com/thumbnail?id=${m[1]}&sz=w1400` : photo;
+}
+
+async function ensureCounters() {
+  try {
+    const res = await api({ action: 'meta' });
+    if (res && res.ok) {
+      const sel = document.getElementById('phCounter');
+      const names = (res.counters || []).concat(res.mainHub ? [res.mainHub] : []);
+      sel.innerHTML = '<option value="">All</option>' + names.map(n => `<option>${escHtml(n)}</option>`).join('');
+    }
+  } catch (e) {}
+}
+
+// ---- Cascading filters (BRO: "counter select cheste aa counter lo unnavi matrame Product list lo
+// ravali; Chain select cheste Weight/Length, Bangle/Sankha select cheste Bangle Size, Finger Ring
+// select cheste Finger Size adagali") ----
+// Counter/Status change -> reload the Product list (scoped to them) and clear the Product-specific
+// filters below it. Product change -> reload just the Design + size filter(s) that apply to THAT
+// product, scoped to the Counter/Status/Product already chosen.
+function productKind(productName) {
+  const p = String(productName || '').toLowerCase();
+  if (p.indexOf('chain') !== -1) return 'chain';
+  if (p.indexOf('bangle') !== -1 || p.indexOf('sankha') !== -1) return 'bangle';
+  if (p.indexOf('ring') !== -1 && p.indexOf('ear') === -1) return 'ring'; // "Finger Ring", not "Ear Ring"
+  return '';
+}
+async function filtersChanged(which) {
+  if (which === 'status' || which === 'counter') {
+    await loadProductOptions();
+    document.getElementById('phProduct').value = '';
+    await loadDimFilterOptions('');
+  } else if (which === 'product') {
+    await loadDimFilterOptions(document.getElementById('phProduct').value);
+  }
+  loadPhotos(true);
+}
+async function loadProductOptions() {
+  const sel = document.getElementById('phProduct'); if (!sel) return;
+  const keep = sel.value;
+  try {
+    const res = await api({ action: 'photoFilters', status: document.getElementById('phStatus').value, counter: document.getElementById('phCounter').value });
+    if (res && res.ok) sel.innerHTML = '<option value="">All</option>' + (res.products || []).map(n => `<option${n === keep ? ' selected' : ''}>${escHtml(n)}</option>`).join('');
+  } catch (e) {}
+}
+async function loadDimFilterOptions(product) {
+  let res = null;
+  try {
+    res = await api({ action: 'photoFilters', status: document.getElementById('phStatus').value, counter: document.getElementById('phCounter').value, product: product || '' });
+  } catch (e) {}
+  renderDimFilters((res && res.ok) ? res : {}, product);
+}
+function renderDimFilters(opts, product) {
+  const wrap = document.getElementById('phDimFilters'); if (!wrap) return;
+  const kind = productKind(product);
+  let html = `<div><label>Design</label><select id="phDesign" onchange="loadPhotos(true)"><option value="">All</option>${(opts.designs || []).map(d => `<option>${escHtml(d)}</option>`).join('')}</select></div>`;
+  if (kind === 'chain') {
+    html += `<div><label>Weight (gm)</label><select id="phWeight" onchange="loadPhotos(true)"><option value="">All</option>${(opts.weights || []).map(w => `<option>${escHtml(w)}</option>`).join('')}</select></div>`;
+    html += `<div><label>Length</label><select id="phLength" onchange="loadPhotos(true)"><option value="">All</option>${(opts.lengths || []).map(l => `<option>${escHtml(l)}</option>`).join('')}</select></div>`;
+  } else if (kind === 'bangle') {
+    html += `<div><label>Bangle Size</label><select id="phBangleSize" onchange="loadPhotos(true)"><option value="">All</option>${(opts.bangleSizes || []).map(b => `<option>${escHtml(b)}</option>`).join('')}</select></div>`;
+  } else if (kind === 'ring') {
+    html += `<div><label>Finger Size</label><select id="phRingSize" onchange="loadPhotos(true)"><option value="">All</option>${(opts.ringSizes || []).map(r => `<option>${escHtml(r)}</option>`).join('')}</select></div>`;
+  }
+  wrap.innerHTML = html;
+}
+
+async function loadPhotos(reset) {
+  const grid = document.getElementById('grid');
+  const moreWrap = document.getElementById('moreWrap');
+  if (reset) { PH.items = []; PH.offset = 0; PH.total = 0; grid.innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>'; }
+  moreWrap.innerHTML = reset ? '' : '<span class="spinner"></span>';
+  try {
+    const val = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+    const res = await api({
+      action: 'photoGallery',
+      status: document.getElementById('phStatus').value,
+      counter: document.getElementById('phCounter').value,
+      product: val('phProduct'), design: val('phDesign'),
+      weight: val('phWeight'), length: val('phLength'), bangleSize: val('phBangleSize'), ringSize: val('phRingSize'),
+      q: document.getElementById('phQ').value.trim(),
+      limit: PH.limit, offset: PH.offset
+    });
+    if (reset) grid.innerHTML = '';
+    if (!res || !res.ok) { grid.innerHTML = `<div class="empty">${escHtml((res && res.error) || 'Could not load photos.')}</div>`; moreWrap.innerHTML = ''; return; }
+    PH.total = res.total || 0;
+    const rows = res.rows || [];
+    const startIdx = PH.items.length;
+    PH.items = PH.items.concat(rows);
+    PH.offset += rows.length;
+    if (!PH.items.length) { grid.innerHTML = '<div class="empty">No photos found for this filter.</div>'; moreWrap.innerHTML = ''; return; }
+    grid.insertAdjacentHTML('beforeend', rows.map((r, i) => tileHtml(r, startIdx + i)).join(''));
+    moreWrap.innerHTML = (PH.offset < PH.total)
+      ? `<button class="btn btn-sec" style="width:auto;padding:9px 22px;" onclick="loadPhotos(false)">Load more (${PH.items.length} of ${PH.total})</button>`
+      : `${PH.items.length} of ${PH.total} shown`;
+  } catch (e) {
+    if (reset) grid.innerHTML = `<div class="empty">Search failed: ${escHtml(e && e.message ? e.message : e)}</div>`;
+    moreWrap.innerHTML = '';
+  }
+}
+
+function tileHtml(r, idx) {
+  const src = thumbUrl(r.photo, 300);
+  const pill = r.status === 'sold' ? '<span class="pill" style="background:var(--red);">SOLD</span>' : '<span class="pill" style="background:var(--green);">STOCK</span>';
+  const label = r.tagNo || r.productName || 'Item';
+  return `<div class="tile" onclick="openViewer(${idx})">
+      <img src="${src}" loading="lazy" alt="${escHtml(label)}" onerror="this.closest('.tile').style.display='none';">
+      ${pill}
+      <div class="tag">${escHtml(label)}</div>
+    </div>`;
+}
+
+// ---- Lightbox: tap a thumbnail -> big photo; swipe or ◀▶ -> next/prev; tap the photo itself ->
+// show/hide a small box with that item's Sheet data. ----
+function openViewer(idx) {
+  PH.openIdx = idx; PH.infoOpen = false;
+  const old = document.getElementById('phModal'); if (old) old.remove();
+  const div = document.createElement('div');
+  div.id = 'phModal';
+  div.className = 'overlay';
+  div.innerHTML = `<div class="stage-box">
+      <button class="close-x" onclick="document.getElementById('phModal').remove()">✕</button>
+      <div id="phStage" class="stage" style="touch-action:none;overflow:hidden;">
+        <button class="nav-btn left" onclick="navPhoto(-1)">◀</button>
+        <img id="phStageImg" src="" style="user-select:none;-webkit-user-drag:none;">
+        <button class="nav-btn right" onclick="navPhoto(1)">▶</button>
+        <div style="position:absolute;bottom:6px;right:8px;z-index:4;display:flex;gap:6px;">
+          <button class="nav-btn" style="position:static;width:32px;height:32px;font-size:16px;" onclick="sharePhoto()" title="Share">📤</button>
+          <button class="nav-btn" style="position:static;width:32px;height:32px;font-size:18px;" onclick="zoomBy(-0.6)" title="Zoom out">−</button>
+          <button class="nav-btn" style="position:static;width:32px;height:32px;font-size:18px;" onclick="zoomBy(0.6)" title="Zoom in">+</button>
+        </div>
+      </div>
+      <div id="phCtrLbl" class="ctr-lbl"></div>
+      <div id="phInfoBox" class="info-box"></div>
+    </div>`;
+  document.body.appendChild(div);
+  div.addEventListener('click', e => { if (e.target === div) div.remove(); });
+
+  document.addEventListener('keydown', keyNav);
+  setupZoomPan();
+  renderStage();
+}
+function keyNav(e) {
+  if (!document.getElementById('phModal')) { document.removeEventListener('keydown', keyNav); return; }
+  if (e.key === 'ArrowLeft') navPhoto(-1);
+  else if (e.key === 'ArrowRight') navPhoto(1);
+  else if (e.key === 'Escape') document.getElementById('phModal').remove();
+  else if (e.key === '+' || e.key === '=') zoomBy(0.6);
+  else if (e.key === '-') zoomBy(-0.6);
+}
+function navPhoto(dir) {
+  const n = PH.items.length; if (!n) return;
+  PH.openIdx = (PH.openIdx + dir + n) % n;
+  PH.infoOpen = false; // sliding to a new photo always starts image-only
+  if (window.__phResetZoom) window.__phResetZoom(); // new photo always starts at 1x
+  renderStage();
+}
+
+// ---- Zoom / pan: mouse wheel / +− buttons / keyboard +− on desktop; pinch (2-finger) + double-tap
+// on touch. A single tap/click still toggles the small detail box — told apart from a double-tap with
+// a short timer. Swipe-to-next-photo only fires at 1x zoom; once zoomed in, one-finger drag pans. ----
+function setupZoomPan() {
+  const stage = document.getElementById('phStage');
+  const img = document.getElementById('phStageImg');
+  if (!stage || !img) return;
+  let scale = 1, tx = 0, ty = 0;
+  let pinchStartDist = 0, pinchStartScale = 1;
+  let dragging = false, dragStartX = 0, dragStartY = 0, dragOrigTx = 0, dragOrigTy = 0;
+  let swipeStartX = null;
+  let tapTimer = null, lastTapAt = 0;
+
+  const clampScale = s => Math.max(1, Math.min(4, s));
+  const apply = () => { img.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`; img.style.cursor = scale > 1.01 ? 'grab' : 'zoom-in'; };
+  window.__phResetZoom = () => { scale = 1; tx = 0; ty = 0; apply(); };
+  window.__phZoomBy = (delta) => { scale = clampScale(scale + delta); if (scale <= 1.01) { tx = 0; ty = 0; } apply(); };
+  const dist = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+
+  stage.addEventListener('wheel', e => {
+    e.preventDefault();
+    scale = clampScale(scale + (e.deltaY < 0 ? 0.4 : -0.4));
+    if (scale <= 1.01) { tx = 0; ty = 0; }
+    apply();
+  }, { passive: false });
+
+  stage.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      pinchStartDist = dist(e.touches[0], e.touches[1]); pinchStartScale = scale; swipeStartX = null;
+    } else if (e.touches.length === 1) {
+      swipeStartX = e.touches[0].clientX;
+      if (scale > 1.01) { dragging = true; dragStartX = e.touches[0].clientX; dragStartY = e.touches[0].clientY; dragOrigTx = tx; dragOrigTy = ty; }
+    }
+  }, { passive: true });
+
+  stage.addEventListener('touchmove', e => {
+    if (e.touches.length === 2 && pinchStartDist) {
+      e.preventDefault();
+      scale = clampScale(pinchStartScale * (dist(e.touches[0], e.touches[1]) / pinchStartDist));
+      if (scale <= 1.01) { tx = 0; ty = 0; }
+      apply();
+    } else if (dragging && e.touches.length === 1) {
+      e.preventDefault();
+      tx = dragOrigTx + (e.touches[0].clientX - dragStartX);
+      ty = dragOrigTy + (e.touches[0].clientY - dragStartY);
+      apply();
+    }
+  }, { passive: false });
+
+  stage.addEventListener('touchend', e => {
+    if (e.touches.length === 0) {
+      pinchStartDist = 0;
+      const wasDragging = dragging; dragging = false;
+      if (!wasDragging && scale <= 1.01 && swipeStartX != null && e.changedTouches.length) {
+        const dx = e.changedTouches[0].clientX - swipeStartX;
+        if (Math.abs(dx) > 40) { navPhoto(dx > 0 ? -1 : 1); swipeStartX = null; return; }
+      }
+      swipeStartX = null;
+      if (!wasDragging) {
+        const now = Date.now();
+        if (now - lastTapAt < 300) {
+          if (tapTimer) { clearTimeout(tapTimer); tapTimer = null; }
+          scale = scale > 1.01 ? 1 : 2.5; if (scale <= 1.01) { tx = 0; ty = 0; } apply();
+          lastTapAt = 0;
+        } else {
+          lastTapAt = now;
+          tapTimer = setTimeout(() => { toggleInfo(); tapTimer = null; }, 300);
+        }
+      }
+    }
+  }, { passive: true });
+
+  img.addEventListener('click', () => {
+    if (tapTimer) return;
+    tapTimer = setTimeout(() => { toggleInfo(); tapTimer = null; }, 260);
+  });
+  img.addEventListener('dblclick', () => {
+    if (tapTimer) { clearTimeout(tapTimer); tapTimer = null; }
+    scale = scale > 1.01 ? 1 : 2.5; if (scale <= 1.01) { tx = 0; ty = 0; } apply();
+  });
+}
+function zoomBy(delta) { if (window.__phZoomBy) window.__phZoomBy(delta); }
+
+// ---- Share (BRO: "need unnavi share option kuda ravali") — shares the item's real Drive link (not
+// the resized thumbnail URL) so whoever receives it can open the actual full photo. Uses the native
+// share sheet where available (phones, most tablets); falls back to copying the link, then to just
+// opening it in a new tab if even clipboard access isn't available. ----
+async function sharePhoto() {
+  const r = PH.items[PH.openIdx]; if (!r || !r.photo) return;
+  const title = (r.tagNo || r.productName || 'Photo') + ' — VSR GOLD';
+  const url = r.photo;
+  if (navigator.share) {
+    try { await navigator.share({ title, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try { await navigator.clipboard.writeText(url); toastMsg('Photo link copied — paste it anywhere to share'); return; } catch (e) {}
+  }
+  window.open(url, '_blank');
+}
+function toastMsg(msg) {
+  const old = document.getElementById('phToast'); if (old) old.remove();
+  const t = document.createElement('div');
+  t.id = 'phToast';
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#241A33;color:#fff;padding:10px 18px;border-radius:24px;font-size:13px;z-index:200;box-shadow:0 6px 20px rgba(0,0,0,.3);';
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2200);
+}
+function toggleInfo() {
+  PH.infoOpen = !PH.infoOpen;
+  const box = document.getElementById('phInfoBox');
+  if (!box) return;
+  if (PH.infoOpen) { box.innerHTML = infoHtml(PH.items[PH.openIdx]); box.style.display = 'block'; }
+  else box.style.display = 'none';
+}
+function renderStage() {
+  const r = PH.items[PH.openIdx]; if (!r) return;
+  const img = document.getElementById('phStageImg');
+  const lbl = document.getElementById('phCtrLbl');
+  const box = document.getElementById('phInfoBox');
+  const full = thumbUrl(r.photo, 1400);
+  const alt = altUrl(r.photo);
+  let triedAlt = false;
+  img.onerror = () => { if (!triedAlt) { triedAlt = true; img.src = alt; } };
+  img.src = full;
+  lbl.textContent = (r.tagNo || r.productName || 'Item') + '  ·  ' + (PH.openIdx + 1) + ' / ' + PH.items.length + (r.status === 'sold' ? '  ·  SOLD' : '  ·  IN STOCK');
+  if (box) box.style.display = 'none';
+}
+function infoHtml(r) {
+  if (!r) return '';
+  const isDia = r.type === 'Diamond';
+  const rows = [
+    ['Type', r.type], ['Tag No', r.tagNo || '—'], ['Product', r.productName],
+    !isDia ? ['Design', r.design] : null, !isDia ? ['Tunch', r.tunch] : null,
+    !isDia ? ['Weight (gm)', r.weight] : null,
+    isDia ? ['Gross Wt', r.gross] : null, isDia ? ['Net Wt', r.net] : null,
+    isDia ? ['Carat', r.carat] : null, isDia ? ['Clarity', r.clarity] : null, isDia ? ['Color', r.color] : null,
+    ['Product From', r.productFrom === 'Main' ? 'Main (Hub)' : r.productFrom], ['Counter', r.counter],
+    ['Entry', (r.entryType || '') + ' · ' + fmtDMY(r.entryDate)], ['Entered By', r.enteredBy],
+    r.status === 'sold' ? ['DSR / Outlet ID', r.dsrId] : null,
+    r.status === 'sold' ? ['Sold Date', fmtDMY(r.soldDate)] : null,
+    r.status === 'sold' ? ['Sold By', r.soldBy] : null,
+    r.status === 'sold' ? ['Payment Status', r.payStatus] : null
+  ].filter(Boolean);
+  return `<table class="info">` +
+    rows.map(([l, v]) => `<tr><td class="lbl">${escHtml(l)}</td><td class="val">${escHtml(v == null || v === '' ? '—' : v)}</td></tr>`).join('') +
+    `</table>`;
+}
+
+(async () => {
+  await ensureCounters();
+  await loadProductOptions();
+  await loadDimFilterOptions('');
+  loadPhotos(true);
+})();
+</script>
+</body>
+</html>
