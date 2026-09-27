@@ -275,7 +275,7 @@ async function refreshSnapshot() {
     applyFiltersAndRender();
   } catch (e) {
     if (!ALL_ITEMS.length) {
-      document.getElementById('grid').innerHTML = `<div class="empty">Could not load photos (${escHtml(e && e.message ? e.message : e)}). Connect to the internet once to load photos for offline use.</div>`;
+      document.getElementById('grid').innerHTML = `<div class="empty">Could not load.</div>`;
     }
   }
 }
@@ -344,16 +344,20 @@ function renderFiltersFromData() {
 }
 
 // ---- Weight Range filter (BRO: "2 nundi 5 gr lopu items chupinchu ante, tick box, from wt/to wt
-// dropdown, aa rendu wt lopu unnavi matrame ravali") — takes the weight list already scoped to whatever
-// Status/Counter/Product is picked (BRO: "filters select cheska, venta daniki related ga next option lo
-// data ravali" — the range list must follow the selection above it, not show every weight in the whole
-// catalog every time). ----
-function populateWtRangeOptions(weights) {
+// dropdown, aa rendu wt lopu unnavi matrame ravali") — BRO later: "WEIGHT DROP DOWN LO 0 TO 100 NUMBERS
+// RAVALI. RENDITLO NU RAVALI. FROM AND TO BOTH DROP DOWN LO RAVALI" — so this is now a fixed 0–100
+// range (in 0.1 steps, so decimals are there too) in BOTH From and To, not just whatever weights
+// happen to exist in the data — you can filter "2.5 to 15.8" even if no single item is exactly that. ----
+const WT_RANGE_OPTIONS_HTML = (() => {
+  let html = '<option value="">Any</option>';
+  for (let i = 0; i <= 1000; i++) html += `<option>${(i / 10).toFixed(1)}</option>`;
+  return html;
+})();
+function populateWtRangeOptions() {
   const fromSel = document.getElementById('phWtFrom'), toSel = document.getElementById('phWtTo');
   if (!fromSel || !toSel) return;
   const keepFrom = fromSel.value, keepTo = toSel.value;
-  const opts = '<option value="">Any</option>' + (weights || []).filter(w => !isNaN(parseFloat(w))).map(w => `<option>${escHtml(w)}</option>`).join('');
-  fromSel.innerHTML = opts; toSel.innerHTML = opts;
+  fromSel.innerHTML = WT_RANGE_OPTIONS_HTML; toSel.innerHTML = WT_RANGE_OPTIONS_HTML;
   fromSel.value = keepFrom; toSel.value = keepTo;
 }
 function toggleWtRange() {
@@ -373,15 +377,15 @@ function reloadDimFilters() {
   const status = document.getElementById('phStatus').value, counter = document.getElementById('phCounter').value;
   const product = document.getElementById('phProduct').value;
   const scoped = scopeItems(status, counter, product);
-  const weights = uniqSorted(scoped.map(r => r.weight));
   renderDimFilters({
     designs: uniqSorted(scoped.map(r => r.design)),
-    weights: weights,
+    weights: uniqSorted(scoped.map(r => r.weight)),
     lengths: uniqSorted(scoped.map(r => r.length)),
     bangleSizes: uniqSorted(scoped.map(r => r.bangleSize)),
     ringSizes: uniqSorted(scoped.map(r => r.ringSize))
   }, product);
-  populateWtRangeOptions(weights); // same Status/Counter/Product-scoped weight list, every time this cascade runs
+  // Weight Range is a fixed 0–100 list (see WT_RANGE_OPTIONS_HTML) — it doesn't need rebuilding per
+  // Counter/Product like the other dim filters, only populated once at load (see initApp/DOMContentLoaded).
 }
 function renderDimFilters(opts, product) {
   const wrap = document.getElementById('phDimFilters'); if (!wrap) return;
@@ -648,6 +652,7 @@ function infoHtml(r) {
     `</table>`;
 }
 
+populateWtRangeOptions(); // fixed 0–100 list, doesn't need any data loaded first
 initApp();
 </script>
 </body>
