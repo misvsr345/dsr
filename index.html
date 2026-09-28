@@ -1200,7 +1200,7 @@ async function ovLoadLedger() {
   const byDesign = document.getElementById('ovByDesign').checked;
   const dateVal = document.getElementById('ovLedgerDate').value || todayStr_ph();
   if (!STOCK_SNAPSHOT.length && !SOLD_SNAPSHOT.length) {
-    body.innerHTML = '<div class="empty" style="color:var(--dmuted);">No offline data saved yet — connect once to load.</div>';
+    body.innerHTML = '<div class="empty" style="color:var(--dmuted);">No offline data saved yet — connect once to load.</div>' + reloadBtnHtml();
     return;
   }
   body.innerHTML = '<div class="loading" style="color:var(--dmuted);"><span class="spinner"></span>Loading DSR data...</div>';
@@ -1208,7 +1208,7 @@ async function ovLoadLedger() {
   try {
     ledgerData = await fetchLedgerUpto_(dateVal);
   } catch (e) {
-    body.innerHTML = `<div class="empty" style="color:var(--dmuted);">${escHtml(e.message || 'Could not load DSR data — check the connection.')}</div>`;
+    body.innerHTML = `<div class="empty" style="color:var(--dmuted);">${escHtml(e.message || 'Could not load DSR data — check the connection.')}</div>` + reloadBtnHtml();
     return;
   }
   // the person may have picked a different date, or left this view, while the fetch above was in flight
@@ -1313,7 +1313,7 @@ function loadSoldData() {
     start = end = todayStr_ph();
   }
   if (!SOLD_SNAPSHOT.length) {
-    body.innerHTML = navigator.onLine ? '<div class="loading"><span class="spinner"></span>Loading...</div>' : '<div class="empty">No offline data saved yet — connect once to load.</div>';
+    body.innerHTML = (navigator.onLine ? '<div class="loading"><span class="spinner"></span>Loading...</div>' : '<div class="empty">No offline data saved yet — connect once to load.</div>') + reloadBtnHtml();
     summary.textContent = '';
     return;
   }
