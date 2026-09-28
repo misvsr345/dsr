@@ -850,40 +850,56 @@ function infoHtml(r) {
 // ============================================================
 // v-add (BRO: "stock phtos lo ee part add chei. without login... only count matrame ravali") —
 // Overview (counter → product/design count, count-only) + Sold Data (date-wise DSR sold list) tabs.
-// Both call the SAME StockBackend actions the main portal's Counter-wise report already uses
-// (summary / counterDetail / counterDimOptions / dailySales) — no new backend logic beyond adding
-// `design` to dailySales_'s output. Fully separate code path from the Photos tab above: doesn't touch
-// ALL_ITEMS, IndexedDB caching, or any existing function.
+// Both are computed from locally-cached snapshots (STOCK_SNAPSHOT / SOLD_SNAPSHOT, set up further
+// below) fetched via the SAME StockBackend actions the main portal already uses — no new backend
+// action beyond adding `design` to dailySales_'s output. Fully separate code path from the Photos tab
+// above: doesn't touch ALL_ITEMS or any existing function.
 // ============================================================
 function showTab(name) {
   ['Photos', 'Overview', 'Sold'].forEach(t => {
     document.getElementById('tab' + t).style.display = (t === name) ? '' : 'none';
     document.getElementById('tabBtn' + t).classList.toggle('active', t === name);
   });
-  if (name === 'Overview' && !OV.loadedTiles) ovLoadTiles();
-  if (name === 'Sold' && !SOLD.loadedOnce) loadSoldData();
+  // Cheap, synchronous, reads only the already-cached arrays — safe to re-render every time the tab
+  // is opened, so it's always showing the latest data that's been synced.
+  if (name === 'Overview') { if (OV.curCounter) { ovLoadDimOptions(); ovLoadDetail(); } else { ovLoadTiles(); } }
+  if (name === 'Sold') loadSoldData();
 }
 
 // ---- Overview: counter tiles (stock-in-hand PCS only) -> product/design-wise count ----
-const OV = { loadedTiles: false, curCounter: null };
+// Everything below reads ONLY the cached STOCK_SNAPSHOT array (no live api() call per click), so it
+// works instantly and fully offline once that snapshot has been fetched at least once.
+const KNOWN_COUNTERS = ['Bangles Counter', 'Necklace Counter', 'Chain Counter', 'Silver Counter',
+  'Finger Ring Counter', 'Ear Ring Counter', 'Diamond Counter', 'Main Hub'];
+const OV = { curCounter: null };
 
-async function ovLoadTiles() {
-  OV.loadedTiles = true;
+function rowCounter_(r) { return String(r.counter || '').trim() || 'Main Hub'; }
+function rowQty_(r) { return parseFloat(r.qty) || 1; }
+function uniqSorted_(arr) {
+  const isNum = s => /^-?\d+(\.\d+)?$/.test(s);
+  return Array.from(new Set(arr)).sort((a, b) => isNum(a) && isNum(b) ? parseFloat(a) - parseFloat(b) : a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+}
+
+function ovLoadTiles() {
   const box = document.getElementById('ovTiles');
-  box.innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
-  try {
-    const res = await api({ action: 'summary' });
-    if (!res || !res.ok) throw new Error(res && res.error || 'err');
-    if (!res.counters || !res.counters.length) { box.innerHTML = '<div class="empty">No data.</div>'; return; }
-    box.innerHTML = res.counters.map(c => `
-      <div class="ov-tile" data-counter="${escHtml(c.counter)}" onclick="ovOpenCounter(this.dataset.counter)">
-        <div class="ov-name">${escHtml(c.counter)}</div>
-        <div class="ov-count">${c.total.pcs}</div>
-        <div class="ov-unit">PCS IN STOCK</div>
-      </div>`).join('');
-  } catch (e) {
-    box.innerHTML = '<div class="empty">Could not load. Check internet.</div>';
+  if (!STOCK_SNAPSHOT.length) {
+    box.innerHTML = navigator.onLine
+      ? '<div class="loading"><span class="spinner"></span>Loading...</div>'
+      : '<div class="empty">No offline data saved yet — connect once to load.</div>';
+    return;
   }
+  // Union of the known counters (so a zero-stock counter still shows a 0 tile, same as before) with
+  // whatever counter names are actually present in the data (adapts automatically if a new counter is
+  // ever added in the Sheet without needing this file updated).
+  const totals = {};
+  KNOWN_COUNTERS.forEach(c => totals[c] = 0);
+  STOCK_SNAPSHOT.forEach(r => { const c = rowCounter_(r); totals[c] = (totals[c] || 0) + rowQty_(r); });
+  box.innerHTML = Object.keys(totals).map(c => `
+    <div class="ov-tile" data-counter="${escHtml(c)}" onclick="ovOpenCounter(this.dataset.counter)">
+      <div class="ov-name">${escHtml(c)}</div>
+      <div class="ov-count">${totals[c]}</div>
+      <div class="ov-unit">PCS IN STOCK</div>
+    </div>`).join('');
 }
 
 function ovBackToTiles() {
@@ -891,65 +907,68 @@ function ovBackToTiles() {
   document.getElementById('ovTilesView').style.display = '';
 }
 
-async function ovOpenCounter(counter) {
+function ovOpenCounter(counter) {
   OV.curCounter = counter;
   document.getElementById('ovTilesView').style.display = 'none';
   document.getElementById('ovDetailView').style.display = '';
   document.getElementById('ovDetailTitle').textContent = counter;
   document.getElementById('ovByDesign').checked = false;
-  await ovLoadDimOptions();
+  ovLoadDimOptions();
   ovLoadDetail();
 }
 
 // Bangle Size / Ring Size / Length dropdowns — same cascade rule as the Photos filters: only the sizes
-// that actually exist somewhere in THIS counter's stock get a dropdown at all.
-async function ovLoadDimOptions() {
+// that actually exist somewhere in THIS counter's cached stock get a dropdown at all.
+function ovLoadDimOptions() {
   const box = document.getElementById('ovDimFilters');
-  box.innerHTML = '';
-  try {
-    const res = await api({ action: 'counterDimOptions', counter: OV.curCounter });
-    if (!res || !res.ok) return;
-    let html = '';
-    const opt = (id, label, values) => {
-      if (!values || !values.length) return '';
-      return `<div><label>${label}</label><select id="${id}" onchange="ovLoadDetail()"><option value="">All</option>${values.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('')}</select></div>`;
-    };
-    html += opt('ovBangleSize', 'Bangle Size', res.bangleSizes);
-    html += opt('ovRingSize', 'Ring Size', res.ringSizes);
-    html += opt('ovLength', 'Length', res.lengths);
-    box.innerHTML = html;
-  } catch (e) {}
+  const rows = STOCK_SNAPSHOT.filter(r => rowCounter_(r) === OV.curCounter);
+  const bangleSizes = uniqSorted_(rows.map(r => String(r.bangleSize || '').trim()).filter(Boolean));
+  const ringSizes = uniqSorted_(rows.map(r => String(r.ringSize || '').trim()).filter(Boolean));
+  const lengths = uniqSorted_(rows.map(r => String(r.length || '').trim()).filter(Boolean));
+  const opt = (id, label, values) => !values.length ? '' :
+    `<div><label>${label}</label><select id="${id}" onchange="ovLoadDetail()"><option value="">All</option>${values.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('')}</select></div>`;
+  box.innerHTML = opt('ovBangleSize', 'Bangle Size', bangleSizes) + opt('ovRingSize', 'Ring Size', ringSizes) + opt('ovLength', 'Length', lengths);
 }
 
-async function ovLoadDetail() {
+function ovLoadDetail() {
   const body = document.getElementById('ovDetailBody');
-  body.innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
-  const byDesign = document.getElementById('ovByDesign').checked ? '1' : '0';
+  const byDesign = document.getElementById('ovByDesign').checked;
   const getVal = id => { const el = document.getElementById(id); return el ? el.value : ''; };
-  try {
-    const res = await api({
-      action: 'counterDetail', counter: OV.curCounter, byDesign,
-      bangleSize: getVal('ovBangleSize'), ringSize: getVal('ovRingSize'), length: getVal('ovLength')
-    });
-    if (!res || !res.ok) throw new Error(res && res.error || 'err');
-    if (!res.rows.length) { body.innerHTML = '<div class="empty">No items.</div>'; return; }
-    let totalPcs = 0;
-    let html = `<div class="ov-table-wrap"><table class="ov-table"><thead><tr><th>Product</th>${res.byDesign ? '<th>Design</th>' : ''}<th style="text-align:right;">Count</th></tr></thead><tbody>`;
-    res.rows.forEach(r => {
-      totalPcs += r.pcs;
-      html += `<tr><td>${escHtml(r.product)}</td>${res.byDesign ? `<td>${escHtml(r.design || '—')}</td>` : ''}<td style="text-align:right;">${r.pcs}</td></tr>`;
-    });
-    html += `</tbody></table></div><div class="note" style="text-align:right;padding-top:8px;">Total: <b>${totalPcs} pcs</b></div>`;
-    body.innerHTML = html;
-  } catch (e) {
-    body.innerHTML = '<div class="empty">Could not load.</div>';
+  const bangleSize = getVal('ovBangleSize'), ringSize = getVal('ovRingSize'), length = getVal('ovLength');
+
+  let rows = STOCK_SNAPSHOT.filter(r => rowCounter_(r) === OV.curCounter);
+  if (bangleSize) rows = rows.filter(r => String(r.bangleSize || '').trim() === bangleSize);
+  if (ringSize) rows = rows.filter(r => String(r.ringSize || '').trim() === ringSize);
+  if (length) rows = rows.filter(r => String(r.length || '').trim() === length);
+
+  if (!STOCK_SNAPSHOT.length) {
+    body.innerHTML = navigator.onLine ? '<div class="loading"><span class="spinner"></span>Loading...</div>' : '<div class="empty">No offline data saved yet — connect once to load.</div>';
+    return;
   }
+  const g = {};
+  rows.forEach(r => {
+    const design = String(r.design || '').trim();
+    const key = byDesign ? (r.productName + '|' + design) : r.productName;
+    if (!g[key]) g[key] = { product: r.productName, design: byDesign ? design : '', pcs: 0 };
+    g[key].pcs += rowQty_(r);
+  });
+  const list = Object.values(g).sort((a, b) => b.pcs - a.pcs);
+  if (!list.length) { body.innerHTML = '<div class="empty">No items.</div>'; return; }
+  let totalPcs = 0;
+  let html = `<div class="ov-table-wrap"><table class="ov-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:right;">Count</th></tr></thead><tbody>`;
+  list.forEach(r => {
+    totalPcs += r.pcs;
+    html += `<tr><td>${escHtml(r.product)}</td>${byDesign ? `<td>${escHtml(r.design || '—')}</td>` : ''}<td style="text-align:right;">${r.pcs}</td></tr>`;
+  });
+  html += `</tbody></table></div><div class="note" style="text-align:right;padding-top:8px;">Total: <b>${totalPcs} pcs</b></div>`;
+  body.innerHTML = html;
 }
 
 // ---- Sold Data: date-wise DSR-sold Tag No / Product / Design (Today by default, or a Custom range) ----
+// Also reads only the cached SOLD_SNAPSHOT array — offline-capable the same way as Overview above.
 // Sold By / Payment Status / Weight are deliberately NOT shown here — this page needs no login, so
 // anyone with the link can open it; only Tag No/Product/Design/Counter (what was actually asked for).
-const SOLD = { mode: 'today', loadedOnce: false };
+const SOLD = { mode: 'today' };
 
 function todayStr_ph() {
   const d = new Date(), p = n => String(n).padStart(2, '0');
@@ -964,8 +983,7 @@ function setSoldMode(mode) {
   customBtn.style.color = mode === 'custom' ? '#fff' : 'var(--purple)';
   document.getElementById('soldCustomBox').style.display = mode === 'custom' ? '' : 'none';
 }
-async function loadSoldData() {
-  SOLD.loadedOnce = true;
+function loadSoldData() {
   const body = document.getElementById('soldBody'), summary = document.getElementById('soldSummary');
   let start, end;
   if (SOLD.mode === 'custom') {
@@ -975,22 +993,22 @@ async function loadSoldData() {
   } else {
     start = end = todayStr_ph();
   }
-  body.innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
-  summary.textContent = '';
-  try {
-    const res = await api({ action: 'dailySales', start, end });
-    if (!res || !res.ok) throw new Error(res && res.error || 'err');
-    if (!res.rows.length) { body.innerHTML = '<div class="empty">No items sold in this range.</div>'; return; }
-    summary.textContent = `Total Sold: ${res.pcs} pcs`;
-    let html = `<table class="ov-table"><thead><tr><th>Date</th><th>Tag No</th><th>Product</th><th>Design</th><th>Counter</th></tr></thead><tbody>`;
-    res.rows.forEach(r => {
-      html += `<tr><td>${fmtDMY(r.soldDate)}</td><td>${escHtml(r.tagNo || '—')}</td><td>${escHtml(r.productName)}</td><td>${escHtml(r.design || '—')}</td><td>${escHtml(r.counter || '—')}</td></tr>`;
-    });
-    html += '</tbody></table>';
-    body.innerHTML = html;
-  } catch (e) {
-    body.innerHTML = '<div class="empty">Could not load.</div>';
+  if (!SOLD_SNAPSHOT.length) {
+    body.innerHTML = navigator.onLine ? '<div class="loading"><span class="spinner"></span>Loading...</div>' : '<div class="empty">No offline data saved yet — connect once to load.</div>';
+    summary.textContent = '';
+    return;
   }
+  const rows = SOLD_SNAPSHOT.filter(r => r.soldDate >= start && r.soldDate <= end);
+  if (!rows.length) { body.innerHTML = '<div class="empty">No items sold in this range.</div>'; summary.textContent = ''; return; }
+  let pcs = 0;
+  rows.forEach(r => pcs += rowQty_(r));
+  summary.textContent = `Total Sold: ${pcs} pcs`;
+  let html = `<table class="ov-table"><thead><tr><th>Date</th><th>Tag No</th><th>Product</th><th>Design</th><th>Counter</th></tr></thead><tbody>`;
+  rows.forEach(r => {
+    html += `<tr><td>${fmtDMY(r.soldDate)}</td><td>${escHtml(r.tagNo || '—')}</td><td>${escHtml(r.productName)}</td><td>${escHtml(r.design || '—')}</td><td>${escHtml(r.counter || '—')}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  body.innerHTML = html;
 }
 setSoldMode('today'); // sets the initial button colors before any tab is even opened
 
