@@ -1043,12 +1043,14 @@ function ovLoadTiles() {
   const totals = {};
   KNOWN_COUNTERS.forEach(c => totals[c] = 0);
   STOCK_SNAPSHOT.forEach(r => { const c = rowCounter_(r); totals[c] = (totals[c] || 0) + rowQty_(r); });
+  // BRO: "all pages lo kinda totals ravali" — a grand total across every counter, at the bottom of the tiles.
+  const grandTotal = Object.values(totals).reduce((s, n) => s + n, 0);
   box.innerHTML = Object.keys(totals).map(c => `
     <div class="ov-tile" data-counter="${escHtml(c)}" onclick="ovOpenCounter(this.dataset.counter)">
       <div class="ov-name">${escHtml(c)}</div>
       <div class="ov-count">${totals[c]}</div>
       <div class="ov-unit">PCS IN STOCK</div>
-    </div>`).join('');
+    </div>`).join('') + `<div class="note" style="grid-column:1/-1;text-align:right;padding-top:8px;">Total: <b>${grandTotal} pcs</b></div>`;
 }
 
 function ovBackToTiles() {
@@ -1275,10 +1277,16 @@ async function ovLoadLedger() {
   // BRO: "products left alignment ok, remaing all center alinment ravali. and all heading names
   // single line lo ravali" — Product (and Design) stay left-aligned; every other column, header and
   // data cell alike, is centered, and no heading wraps to a 2nd line.
+  // BRO: "all pages lo kinda totals ravali" — a totals row summing every column, at the bottom of the table.
+  const tot = list.reduce((s, r) => {
+    s.opening += r.opening; s.closing += r.closing; s.sold += r.sold; s.ret += r.ret; s.outlet += r.outlet;
+    return s;
+  }, { opening: 0, closing: 0, sold: 0, ret: 0, outlet: 0 });
   let html = `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:center;">Opening</th><th style="text-align:center;">Closing</th><th style="text-align:center;">Sold</th><th style="text-align:center;">Return</th><th style="text-align:center;">Outlet Issue</th></tr></thead><tbody>`;
   list.forEach(r => {
     html += `<tr><td>${escHtml(r.product)}</td>${byDesign ? `<td>${escHtml(r.design || '—')}</td>` : ''}<td style="text-align:center;">${r.opening}</td><td style="text-align:center;">${r.closing}</td><td style="text-align:center;">${r.sold}</td><td style="text-align:center;">${r.ret}</td><td style="text-align:center;">${r.outlet}</td></tr>`;
   });
+  html += `<tr style="font-weight:800;border-top:2px solid var(--gold);"><td>Total</td>${byDesign ? '<td></td>' : ''}<td style="text-align:center;">${tot.opening}</td><td style="text-align:center;">${tot.closing}</td><td style="text-align:center;">${tot.sold}</td><td style="text-align:center;">${tot.ret}</td><td style="text-align:center;">${tot.outlet}</td></tr>`;
   html += '</tbody></table></div>';
   body.innerHTML = html;
 }
