@@ -111,7 +111,11 @@
   .ov-tile .ov-unit{font-size:10.5px;color:var(--dmuted);font-weight:700;}
   table.ov-table{width:100%;border-collapse:collapse;font-size:12.5px;}
   table.ov-table th,table.ov-table td{padding:7px 5px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
-  table.ov-table th{color:var(--dmuted);font-size:10px;text-transform:uppercase;}
+  /* BRO: "all data taluka letter style oke laga undi, all bold icharu, so only heading matrame bold
+     ivu" — only the <th> heading row is bold now; every data <td> below (including the count/tag-no
+     cells that used to be forced bold+colored inline) is plain, same weight as the rest. */
+  table.ov-table th{color:var(--dmuted);font-size:10px;text-transform:uppercase;font-weight:800;}
+  table.ov-table td{font-weight:400;color:var(--text);}
   .ov-table-wrap{overflow-x:auto;}
 </style>
 </head>
@@ -388,8 +392,42 @@ function updateOnlineBanner() {
   const b = document.getElementById('offlineBanner');
   if (b) b.style.display = navigator.onLine ? 'none' : 'block';
 }
-window.addEventListener('online', () => { updateOnlineBanner(); refreshSnapshot(); });
+window.addEventListener('online', () => { updateOnlineBanner(); refreshSnapshot(); refreshOverviewSnapshots(); });
 window.addEventListener('offline', updateOnlineBanner);
+
+// v-add (BRO: "data offline lo kuda update ravali. so local lo cache laga save avali" — Overview/Sold
+// Data must also work fully offline, same as Photos already does). Instead of calling the
+// summary/counterDetail/counterDimOptions/dailySales actions live on every click (which fails with no
+// signal), the FULL underlying rows are fetched ONCE, cached in the same IndexedDB 'meta' store as the
+// photo snapshot, and every Overview/Sold-Data screen after that is computed straight from these
+// in-memory arrays — instant, and works with zero internet once cached at least once.
+let STOCK_SNAPSHOT = []; // every in-hand Stock row, all counters (powers the Overview tab)
+let SOLD_SNAPSHOT = [];  // every Sold row, all time (powers the Sold Data tab)
+async function fetchStockSnapshotFull() {
+  const res = await api({ action: 'listStock', counter: '', q: '', limit: 100000 });
+  if (!res || !res.ok) throw new Error((res && res.error) || 'Could not load stock.');
+  return res.rows || [];
+}
+async function fetchSoldSnapshotFull() {
+  const res = await api({ action: 'dailySales', start: '2000-01-01', end: todayStr_ph() });
+  if (!res || !res.ok) throw new Error((res && res.error) || 'Could not load sold data.');
+  return res.rows || [];
+}
+async function refreshOverviewSnapshots() {
+  if (!navigator.onLine) return;
+  try {
+    const [stockRows, soldRows] = await Promise.all([fetchStockSnapshotFull(), fetchSoldSnapshotFull()]);
+    STOCK_SNAPSHOT = stockRows;
+    SOLD_SNAPSHOT = soldRows;
+    idbSet('meta', 'stockSnapshot', { rows: stockRows, fetchedAt: Date.now() });
+    idbSet('meta', 'soldSnapshot', { rows: soldRows, fetchedAt: Date.now() });
+    // If Overview/Sold Data is the tab currently open, refresh what's already on screen with the new data.
+    if (document.getElementById('tabOverview').style.display !== 'none') {
+      if (OV.curCounter) { ovLoadDimOptions(); ovLoadDetail(); } else { ovLoadTiles(); }
+    }
+    if (document.getElementById('tabSold').style.display !== 'none') loadSoldData();
+  } catch (e) { /* offline or backend error — whatever was cached earlier (if any) stays as-is */ }
+}
 
 // Pulls every photographed item (Stock + Sold) in pages behind the scenes, so the rest of the app can
 // treat it as one flat, already-fetched array.
@@ -432,6 +470,14 @@ async function initApp() {
     document.getElementById('grid').innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
   }
   refreshSnapshot();
+
+  // v-add: load whatever Overview/Sold Data was cached last time (works offline immediately), then try
+  // a live refresh in the background if online.
+  const cachedStock = await idbGet('meta', 'stockSnapshot');
+  if (cachedStock && cachedStock.rows) STOCK_SNAPSHOT = cachedStock.rows;
+  const cachedSold = await idbGet('meta', 'soldSnapshot');
+  if (cachedSold && cachedSold.rows) SOLD_SNAPSHOT = cachedSold.rows;
+  refreshOverviewSnapshots();
 }
 
 // ---- Cascading filters (BRO: "counter select cheste aa counter lo unnavi matrame Product list lo
@@ -891,7 +937,7 @@ async function ovLoadDetail() {
     let html = `<div class="ov-table-wrap"><table class="ov-table"><thead><tr><th>Product</th>${res.byDesign ? '<th>Design</th>' : ''}<th style="text-align:right;">Count</th></tr></thead><tbody>`;
     res.rows.forEach(r => {
       totalPcs += r.pcs;
-      html += `<tr><td>${escHtml(r.product)}</td>${res.byDesign ? `<td>${escHtml(r.design || '—')}</td>` : ''}<td style="text-align:right;font-weight:800;color:var(--purple);">${r.pcs}</td></tr>`;
+      html += `<tr><td>${escHtml(r.product)}</td>${res.byDesign ? `<td>${escHtml(r.design || '—')}</td>` : ''}<td style="text-align:right;">${r.pcs}</td></tr>`;
     });
     html += `</tbody></table></div><div class="note" style="text-align:right;padding-top:8px;">Total: <b>${totalPcs} pcs</b></div>`;
     body.innerHTML = html;
@@ -938,7 +984,7 @@ async function loadSoldData() {
     summary.textContent = `Total Sold: ${res.pcs} pcs`;
     let html = `<table class="ov-table"><thead><tr><th>Date</th><th>Tag No</th><th>Product</th><th>Design</th><th>Counter</th></tr></thead><tbody>`;
     res.rows.forEach(r => {
-      html += `<tr><td>${fmtDMY(r.soldDate)}</td><td style="font-weight:800;color:var(--purple);">${escHtml(r.tagNo || '—')}</td><td>${escHtml(r.productName)}</td><td>${escHtml(r.design || '—')}</td><td>${escHtml(r.counter || '—')}</td></tr>`;
+      html += `<tr><td>${fmtDMY(r.soldDate)}</td><td>${escHtml(r.tagNo || '—')}</td><td>${escHtml(r.productName)}</td><td>${escHtml(r.design || '—')}</td><td>${escHtml(r.counter || '—')}</td></tr>`;
     });
     html += '</tbody></table>';
     body.innerHTML = html;
