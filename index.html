@@ -130,6 +130,26 @@
   table.ov-table th{color:var(--dmuted);font-size:10px;text-transform:uppercase;font-weight:800;}
   table.ov-table td{font-weight:400;color:var(--text);}
   .ov-table-wrap{overflow-x:auto;}
+
+  /* v-add (BRO's Opening/Closing Ledger, opened by tapping the counter name in the Overview
+     drill-down): "ikada ichina imaglo unna color matrame use chei. with gold boarder tho ivu" — this
+     view uses ONLY the pink-top-to-dark-purple-bottom gradient from BRO's reference image (not the
+     dark maroon --purple/--purple-mid used everywhere else on this page), with a gold border. */
+  #ovDetailTitle.ov-ledger-trigger{cursor:pointer;}
+  #ovDetailTitle.ov-ledger-trigger small{display:block;font-size:10px;font-weight:700;color:var(--dmuted);text-transform:none;letter-spacing:0;margin-top:3px;}
+  .ov-ledger-card{
+    background:linear-gradient(180deg, #F06AA0 0%, #6B1F86 55%, #2E0854 100%);
+    border:2px solid var(--gold);
+  }
+  .ov-ledger-card #ovLedgerTitle{color:#fff;}
+  .ov-ledger-card input[type=date]{
+    max-width:170px;background:#fff;border:1.5px solid var(--gold);border-radius:8px;
+    padding:8px 10px;font-weight:700;color:var(--purple);
+  }
+  table.ledger-table{width:100%;border-collapse:collapse;font-size:12px;}
+  table.ledger-table th,table.ledger-table td{padding:7px 5px;border-bottom:1px solid rgba(255,255,255,.28);text-align:left;white-space:nowrap;}
+  table.ledger-table th{font-size:9.5px;text-transform:uppercase;font-weight:800;color:#fbe0ee;}
+  table.ledger-table td{font-weight:600;color:#fff;}
 </style>
 </head>
 <body>
@@ -195,15 +215,40 @@
       <button class="btn btn-sec" style="width:auto;padding:9px 16px;margin-bottom:10px;" onclick="ovBackToTiles()">← Back to Counters</button>
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-          <div style="font-weight:800;color:var(--purple);font-size:15px;" id="ovDetailTitle"></div>
+          <div class="ov-ledger-trigger" style="font-weight:800;color:var(--purple);font-size:15px;" id="ovDetailTitle" onclick="ovOpenLedgerFromTitle()"></div>
           <label style="display:flex;align-items:center;gap:6px;margin:0;text-transform:none;font-size:12.5px;color:var(--text);">
             <input type="checkbox" id="ovByDesign" onchange="ovLoadDetail()" style="width:16px;height:16px;margin:0;"> Design-wise
           </label>
         </div>
         <div class="filters" id="ovDimFilters"></div>
+        <div class="filters">
+          <div class="full" style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <input type="checkbox" id="ovWtRangeOn" onchange="toggleOvWtRange()" style="width:18px;height:18px;margin:0;">
+            <label style="margin:0;text-transform:none;font-size:13.5px;color:var(--text);">Weight Range (gm)</label>
+          </div>
+        </div>
+        <div class="filters" id="ovWtRangeBox" style="display:none;">
+          <div><label>From Wt</label><select id="ovWtFrom" onchange="ovLoadDetail()"><option value="">Any</option></select></div>
+          <div><label>To Wt</label><select id="ovWtTo" onchange="ovLoadDetail()"><option value="">Any</option></select></div>
+        </div>
         <div id="ovDetailBody"><div class="loading"><span class="spinner"></span>Loading...</div></div>
       </div>
     </div>
+
+    <!-- v-add (BRO: "counter name pai click cheste, ... opening coutn, closing count, sold coutn,
+         return count, outlet issue, ila all data tho product wise disine wise ani ravali. tabale
+         laga ravali. text laga vaddu" — opens from tapping the counter name above. "today button
+         vaddu. dani place lo only date picker okati chalu" — single date picker, no Today button. ) -->
+    <div id="ovLedgerView" style="display:none;">
+      <button class="btn btn-sec" style="width:auto;padding:9px 16px;margin-bottom:10px;" onclick="ovBackToDetailFromLedger()">← Back</button>
+      <div class="card ov-ledger-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+          <div style="font-weight:800;font-size:14.5px;" id="ovLedgerTitle"></div>
+          <input type="date" id="ovLedgerDate" onchange="ovLoadLedger()">
+        </div>
+        <div id="ovLedgerBody"><div class="loading" style="color:#fff;"><span class="spinner"></span>Loading...</div></div>
+      </div>
+    </div><!-- /#ovLedgerView -->
   </div><!-- /#tabOverview -->
 
   <!-- v-add (BRO: "dsr entered data kuda ravali, date wise... tag no and product and design detail
@@ -255,6 +300,15 @@
 
 // PASTE your Stock Level Web App URL here (same one used by the main portal's STOCK_GAS_URL).
 const STOCK_GAS_URL = "https://script.google.com/macros/s/AKfycbyZR0GpuTCgy2ErrFO4DOyBaN2USByivHUxN1QOeR67mkRM0l_pcmnodBt41KF29Wi0/exec";
+
+// v-add (BRO's Opening/Closing Ledger — Sale comes from DSR entry, Outlet Issue from the DSR file's
+// own "Outlet Issue" tab): PASTE your DSR Web App URL here (the same one the DSR entry form itself
+// posts to) once DSRBackend.gs (with the new "ledgerData" action) is deployed.
+const DSR_GAS_URL = "PASTE_YOUR_DSR_WEB_APP_URL_HERE";
+function dsrApi(params) {
+  const qs = Object.entries(params).map(([k, v]) => k + '=' + encodeURIComponent(v == null ? '' : v)).join('&');
+  return fetch(DSR_GAS_URL + '?' + qs).then(r => r.json());
+}
 
 // Store details shown in the footer at the bottom of the page.
 const STORE_ADDRESS_LINES = [
@@ -436,7 +490,9 @@ async function refreshOverviewSnapshots() {
     idbSet('meta', 'soldSnapshot', { rows: soldRows, fetchedAt: Date.now() });
     // If Overview/Sold Data is the tab currently open, refresh what's already on screen with the new data.
     if (document.getElementById('tabOverview').style.display !== 'none') {
-      if (OV.curCounter) { ovLoadDimOptions(); ovLoadDetail(); } else { ovLoadTiles(); }
+      if (document.getElementById('ovLedgerView').style.display !== 'none') { ovLoadLedger(); }
+      else if (OV.curCounter) { ovLoadDimOptions(); ovLoadDetail(); }
+      else { ovLoadTiles(); }
     }
     if (document.getElementById('tabSold').style.display !== 'none') loadSoldData();
   } catch (e) { /* offline or backend error — whatever was cached earlier (if any) stays as-is */ }
@@ -560,11 +616,20 @@ function populateWtRangeOptions() {
   const keepFrom = fromSel.value, keepTo = toSel.value;
   fromSel.innerHTML = WT_RANGE_OPTIONS_HTML; toSel.innerHTML = WT_RANGE_OPTIONS_HTML;
   fromSel.value = keepFrom; toSel.value = keepTo;
+  // v-add (BRO: "wt kuda ivu... adi click cheste from and to wt box lu ravali" — Overview's own Weight
+  // Range filter, same fixed 0–100 list as the Photos tab's).
+  const ovFromSel = document.getElementById('ovWtFrom'), ovToSel = document.getElementById('ovWtTo');
+  if (ovFromSel && ovToSel) { ovFromSel.innerHTML = WT_RANGE_OPTIONS_HTML; ovToSel.innerHTML = WT_RANGE_OPTIONS_HTML; }
 }
 function toggleWtRange() {
   const on = document.getElementById('phWtRangeOn').checked;
   document.getElementById('phWtRangeBox').style.display = on ? 'grid' : 'none';
   applyFiltersAndRender();
+}
+function toggleOvWtRange() {
+  const on = document.getElementById('ovWtRangeOn').checked;
+  document.getElementById('ovWtRangeBox').style.display = on ? 'grid' : 'none';
+  ovLoadDetail();
 }
 function reloadProductOptions() {
   const sel = document.getElementById('phProduct'); if (!sel) return;
@@ -875,7 +940,11 @@ function showTab(name) {
   });
   // Cheap, synchronous, reads only the already-cached arrays — safe to re-render every time the tab
   // is opened, so it's always showing the latest data that's been synced.
-  if (name === 'Overview') { if (OV.curCounter) { ovLoadDimOptions(); ovLoadDetail(); } else { ovLoadTiles(); } }
+  if (name === 'Overview') {
+    if (document.getElementById('ovLedgerView').style.display !== 'none') { ovLoadLedger(); }
+    else if (OV.curCounter) { ovLoadDimOptions(); ovLoadDetail(); }
+    else { ovLoadTiles(); }
+  }
   if (name === 'Sold') loadSoldData();
 }
 
@@ -924,8 +993,12 @@ function ovOpenCounter(counter) {
   OV.curCounter = counter;
   document.getElementById('ovTilesView').style.display = 'none';
   document.getElementById('ovDetailView').style.display = '';
-  document.getElementById('ovDetailTitle').textContent = counter;
+  document.getElementById('ovLedgerView').style.display = 'none';
+  // v-add: the title itself opens the Opening/Closing Ledger — hint line makes that tappable-ness visible.
+  document.getElementById('ovDetailTitle').innerHTML = escHtml(counter) + '<small>📒 Tap for Opening / Closing Ledger</small>';
   document.getElementById('ovByDesign').checked = false;
+  document.getElementById('ovWtRangeOn').checked = false;
+  document.getElementById('ovWtRangeBox').style.display = 'none';
   ovLoadDimOptions();
   ovLoadDetail();
 }
@@ -948,11 +1021,26 @@ function ovLoadDetail() {
   const byDesign = document.getElementById('ovByDesign').checked;
   const getVal = id => { const el = document.getElementById(id); return el ? el.value : ''; };
   const bangleSize = getVal('ovBangleSize'), ringSize = getVal('ovRingSize'), length = getVal('ovLength');
+  // v-add (BRO: "wt kuda ivu. wt kosam check box ivu. adi click cheste, from and to wt box lu ravali")
+  // — same From/To weight-range filter as Photos, narrowing which rows get counted (the result shown
+  // is still count-only — weight itself is never displayed here, only used to filter).
+  const wtRangeOn = document.getElementById('ovWtRangeOn').checked;
+  const wtFrom = wtRangeOn ? parseFloat(getVal('ovWtFrom')) : NaN;
+  const wtTo = wtRangeOn ? parseFloat(getVal('ovWtTo')) : NaN;
 
   let rows = STOCK_SNAPSHOT.filter(r => rowCounter_(r) === OV.curCounter);
   if (bangleSize) rows = rows.filter(r => String(r.bangleSize || '').trim() === bangleSize);
   if (ringSize) rows = rows.filter(r => String(r.ringSize || '').trim() === ringSize);
   if (length) rows = rows.filter(r => String(r.length || '').trim() === length);
+  if (wtRangeOn && (!isNaN(wtFrom) || !isNaN(wtTo))) {
+    rows = rows.filter(r => {
+      const w = parseFloat(r.weight);
+      if (isNaN(w)) return false;
+      if (!isNaN(wtFrom) && w < wtFrom) return false;
+      if (!isNaN(wtTo) && w > wtTo) return false;
+      return true;
+    });
+  }
 
   if (!STOCK_SNAPSHOT.length) {
     body.innerHTML = navigator.onLine ? '<div class="loading"><span class="spinner"></span>Loading...</div>' : '<div class="empty">No offline data saved yet — connect once to load.</div>';
@@ -974,6 +1062,150 @@ function ovLoadDetail() {
     html += `<tr><td>${escHtml(r.product)}</td>${byDesign ? `<td>${escHtml(r.design || '—')}</td>` : ''}<td style="text-align:right;">${r.pcs}</td></tr>`;
   });
   html += `</tbody></table></div><div class="note" style="text-align:right;padding-top:8px;">Total: <b>${totalPcs} pcs</b></div>`;
+  body.innerHTML = html;
+}
+
+// ============================================================
+// v-add (BRO's Opening/Closing Ledger — "counter name pai click cheste... opening coutn, closing
+// count, sold coutn, return count, outlet issue, ila all data tho product wise disine wise ani
+// ravali. tabale laga ravali"). Formula (BRO, verbatim): "close stock ante, all sale, all returns
+// (damage/repair) ivi minus avali, and reciving stock plus avali. out issue kuda opening stock lo
+// minus avali... opening stock ninnati closing" — i.e. for any date D:
+//   Closing(D) = OpeningBaseline + Receiving(<=D) - Sale(<=D) - OutletIssue(<=D) - Return/Repair(<=D)
+//   Opening(D) = Closing(D-1)            [same formula evaluated up to D-1]
+// Return/Repair/Transfer isn't tracked anywhere yet (BRO: "dinni inka update cheyaledu, prastutaniki
+// 0ga count chei") so it's hardcoded to 0 until that feature exists. The single-day Sold/Outlet Issue
+// columns shown in the table are that day's rows only (date === D exactly) — Closing minus Opening
+// still equals Receiving(D) - Sold(D) - OutletIssue(D), it's just that Receiving(D) itself isn't
+// shown as its own column, matching BRO's requested column list exactly.
+//
+// Sale/Outlet-Issue rows come from DSRBackend.gs's new "ledgerData" action (Main file + Archive for
+// Sale, the "Outlet Issue" tab for Outlet Issue) — those rows carry no Counter, so each one is
+// attributed to a counter by looking its Tag No up in the SAME Stock/Sold snapshots already cached
+// for the rest of this page (BRO: "tag no stock level file lo undi. aa tag no batti search chesi
+// ivu"). A tag not found there is skipped entirely (BRO: "no tag item ni leave chei. stock level file
+// lo unna stock matrame count ravali") — same rule as No-Tag items.
+//
+// Not offline-cached like Overview/Sold Data above (needs a live call to the separate DSR backend);
+// results for a given date are kept in an in-memory cache for this app session only, so re-picking a
+// date already looked at doesn't re-fetch.
+// ============================================================
+function allEntryRows_() { return STOCK_SNAPSHOT.concat(SOLD_SNAPSHOT); }
+function buildTagIndex_() {
+  const idx = {};
+  // Stock (currently in hand) checked last so it wins over Sold if a tag somehow appears in both —
+  // in practice a tag is only ever in one of the two at a time.
+  SOLD_SNAPSHOT.forEach(r => { if (r.tagNo) idx[normTag(r.tagNo)] = { counter: rowCounter_(r), productName: r.productName, design: r.design || '' }; });
+  STOCK_SNAPSHOT.forEach(r => { if (r.tagNo) idx[normTag(r.tagNo)] = { counter: rowCounter_(r), productName: r.productName, design: r.design || '' }; });
+  return idx;
+}
+function prevDateStr_(d) {
+  const dt = new Date(d + 'T00:00:00');
+  dt.setDate(dt.getDate() - 1);
+  const p = n => String(n).padStart(2, '0');
+  return dt.getFullYear() + '-' + p(dt.getMonth() + 1) + '-' + p(dt.getDate());
+}
+const LEDGER_CACHE = {}; // { [uptoDate]: {sales:[...], outletIssues:[...]} } — this session only.
+async function fetchLedgerUpto_(uptoDate) {
+  if (LEDGER_CACHE[uptoDate]) return LEDGER_CACHE[uptoDate];
+  const res = await dsrApi({ action: 'ledgerData', uptoDate });
+  if (!res || !res.ok) throw new Error((res && res.message) || 'Could not load DSR data.');
+  const data = { sales: res.sales || [], outletIssues: res.outletIssues || [] };
+  LEDGER_CACHE[uptoDate] = data;
+  return data;
+}
+function ovOpenLedgerFromTitle() {
+  if (!OV.curCounter) return;
+  document.getElementById('ovDetailView').style.display = 'none';
+  document.getElementById('ovLedgerView').style.display = '';
+  document.getElementById('ovLedgerTitle').textContent = OV.curCounter + ' — Opening / Closing Ledger';
+  const dateInput = document.getElementById('ovLedgerDate');
+  if (!dateInput.value) dateInput.value = todayStr_ph();
+  ovLoadLedger();
+}
+function ovBackToDetailFromLedger() {
+  document.getElementById('ovLedgerView').style.display = 'none';
+  document.getElementById('ovDetailView').style.display = '';
+}
+async function ovLoadLedger() {
+  const body = document.getElementById('ovLedgerBody');
+  const counter = OV.curCounter;
+  if (!counter) return;
+  const byDesign = document.getElementById('ovByDesign').checked;
+  const dateVal = document.getElementById('ovLedgerDate').value || todayStr_ph();
+  if (!STOCK_SNAPSHOT.length && !SOLD_SNAPSHOT.length) {
+    body.innerHTML = '<div class="empty" style="color:#fff;">No offline data saved yet — connect once to load.</div>';
+    return;
+  }
+  body.innerHTML = '<div class="loading" style="color:#fff;"><span class="spinner"></span>Loading DSR data...</div>';
+  let ledgerData;
+  try {
+    ledgerData = await fetchLedgerUpto_(dateVal);
+  } catch (e) {
+    body.innerHTML = `<div class="empty" style="color:#fff;">${escHtml(e.message || 'Could not load DSR data — check the connection.')}</div>`;
+    return;
+  }
+  // the person may have picked a different date, or left this view, while the fetch above was in flight
+  if (OV.curCounter !== counter || document.getElementById('ovLedgerView').style.display === 'none') return;
+  if (document.getElementById('ovLedgerDate').value !== dateVal) return;
+
+  const prevDate = prevDateStr_(dateVal);
+  const tagIdx = buildTagIndex_();
+  const entryRows = allEntryRows_().filter(r => rowCounter_(r) === counter);
+
+  const groupKey_ = (productName, design) => byDesign ? (productName + '|' + String(design || '').trim()) : productName;
+
+  // Every Product(+Design) group this counter has ever had an Opening/Receiving entry for.
+  const groups = {};
+  entryRows.forEach(r => {
+    const key = groupKey_(r.productName, r.design);
+    if (!groups[key]) groups[key] = { product: r.productName, design: byDesign ? String(r.design || '').trim() : '' };
+  });
+
+  function baseline(key) {
+    return entryRows.filter(r => r.entryType === 'Opening Stock' && groupKey_(r.productName, r.design) === key)
+      .reduce((s, r) => s + rowQty_(r), 0);
+  }
+  function receivingUpto(key, upto) {
+    return entryRows.filter(r => r.entryType === 'Receiving Stock' && r.entryDate && r.entryDate <= upto && groupKey_(r.productName, r.design) === key)
+      .reduce((s, r) => s + rowQty_(r), 0);
+  }
+  // Sale/Outlet-Issue rows carry no Counter of their own — resolved here via Tag No against the same
+  // Stock/Sold snapshot used for the rest of this page. Returns null (skip) for a tag not found there,
+  // or one that belongs to a different counter.
+  function resolveKey_(row) {
+    const hit = tagIdx[normTag(row.tagNo)];
+    if (!hit || hit.counter !== counter) return null;
+    return groupKey_(hit.productName, hit.design);
+  }
+  function sumMatching(list, key, pred) {
+    let n = 0;
+    list.forEach(row => { if (pred(row) && resolveKey_(row) === key) n++; });
+    return n;
+  }
+  const saleUpto = (key, upto) => sumMatching(ledgerData.sales, key, s => s.date <= upto);
+  const saleOn = (key, d) => sumMatching(ledgerData.sales, key, s => s.date === d);
+  const outletUpto = (key, upto) => sumMatching(ledgerData.outletIssues, key, o => o.date <= upto);
+  const outletOn = (key, d) => sumMatching(ledgerData.outletIssues, key, o => o.date === d);
+
+  const list = Object.keys(groups).map(key => {
+    const base = baseline(key);
+    const closingToday = base + receivingUpto(key, dateVal) - saleUpto(key, dateVal) - outletUpto(key, dateVal);
+    const closingPrev = base + receivingUpto(key, prevDate) - saleUpto(key, prevDate) - outletUpto(key, prevDate);
+    return {
+      product: groups[key].product, design: groups[key].design,
+      opening: closingPrev, closing: closingToday,
+      sold: saleOn(key, dateVal), ret: 0, outlet: outletOn(key, dateVal)
+    };
+  }).sort((a, b) => a.product.localeCompare(b.product, undefined, { numeric: true, sensitivity: 'base' }) || a.design.localeCompare(b.design, undefined, { numeric: true, sensitivity: 'base' }));
+
+  if (!list.length) { body.innerHTML = '<div class="empty" style="color:#fff;">No ledger data for this counter yet.</div>'; return; }
+
+  let html = `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:right;">Opening</th><th style="text-align:right;">Closing</th><th style="text-align:right;">Sold</th><th style="text-align:right;">Return</th><th style="text-align:right;">Outlet<br>Issue</th></tr></thead><tbody>`;
+  list.forEach(r => {
+    html += `<tr><td>${escHtml(r.product)}</td>${byDesign ? `<td>${escHtml(r.design || '—')}</td>` : ''}<td style="text-align:right;">${r.opening}</td><td style="text-align:right;">${r.closing}</td><td style="text-align:right;">${r.sold}</td><td style="text-align:right;">${r.ret}</td><td style="text-align:right;">${r.outlet}</td></tr>`;
+  });
+  html += '</tbody></table></div>';
   body.innerHTML = html;
 }
 
