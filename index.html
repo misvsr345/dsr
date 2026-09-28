@@ -98,6 +98,21 @@
     .stage-box{max-width:820px;max-height:92vh;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5);}
   }
   @media (min-width:1100px){ .stage-box{max-width:960px;} }
+
+  /* v-add (BRO: no-login Overview + Sold Data tabs, count-only stock check for employees):
+     simple 3-way tab bar reusing the existing .btn/.btn-sec look, no new color system. */
+  .tabbar{display:flex;gap:6px;margin-bottom:10px;}
+  .tabbar button{flex:1;padding:10px 4px;border-radius:10px;border:1.5px solid var(--purple);background:#fff;color:var(--purple);font-weight:800;font-size:12px;cursor:pointer;}
+  .tabbar button.active{background:var(--purple);color:#fff;}
+  .ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
+  .ov-tile{background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:14px 10px;text-align:center;cursor:pointer;}
+  .ov-tile .ov-name{font-size:11.5px;font-weight:800;color:var(--purple-mid);text-transform:uppercase;letter-spacing:.3px;}
+  .ov-tile .ov-count{font-size:24px;font-weight:800;color:var(--purple);margin-top:4px;}
+  .ov-tile .ov-unit{font-size:10.5px;color:var(--dmuted);font-weight:700;}
+  table.ov-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  table.ov-table th,table.ov-table td{padding:7px 5px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
+  table.ov-table th{color:var(--dmuted);font-size:10px;text-transform:uppercase;}
+  .ov-table-wrap{overflow-x:auto;}
 </style>
 </head>
 <body>
@@ -111,6 +126,13 @@
 <div id="syncBanner"></div>
 
 <div class="wrap">
+  <div class="tabbar">
+    <button id="tabBtnPhotos" class="active" onclick="showTab('Photos')">🖼️ Photos</button>
+    <button id="tabBtnOverview" onclick="showTab('Overview')">📊 Overview</button>
+    <button id="tabBtnSold" onclick="showTab('Sold')">📦 Sold Data</button>
+  </div>
+
+  <div id="tabPhotos">
   <div class="card">
     <div class="filters">
       <div><label>Show</label>
@@ -142,6 +164,53 @@
 
   <div id="grid" class="grid"></div>
   <div id="moreWrap" class="note"></div>
+  </div><!-- /#tabPhotos -->
+
+  <!-- v-add (BRO: "stock phtos lo ee part add chei... without login... only count matrame ravali" —
+       counter-wise / product-wise / design-wise STOCK-IN-HAND count, no weight, no login. Reuses the
+       exact same summary/counterDetail/counterDimOptions backend actions already built for the main
+       portal's Counter-wise report — no new backend logic, just a count-only view of it here. -->
+  <div id="tabOverview" style="display:none;">
+    <div id="ovTilesView">
+      <div class="ov-grid" id="ovTiles"><div class="loading"><span class="spinner"></span>Loading...</div></div>
+    </div>
+    <div id="ovDetailView" style="display:none;">
+      <button class="btn btn-sec" style="width:auto;padding:9px 16px;margin-bottom:10px;" onclick="ovBackToTiles()">← Back to Counters</button>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+          <div style="font-weight:800;color:var(--purple);font-size:15px;" id="ovDetailTitle"></div>
+          <label style="display:flex;align-items:center;gap:6px;margin:0;text-transform:none;font-size:12.5px;color:var(--text);">
+            <input type="checkbox" id="ovByDesign" onchange="ovLoadDetail()" style="width:16px;height:16px;margin:0;"> Design-wise
+          </label>
+        </div>
+        <div class="filters" id="ovDimFilters"></div>
+        <div id="ovDetailBody"><div class="loading"><span class="spinner"></span>Loading...</div></div>
+      </div>
+    </div>
+  </div><!-- /#tabOverview -->
+
+  <!-- v-add (BRO: "dsr entered data kuda ravali, date wise... tag no and product and design detail
+       ravali" — sold items grouped by date, Today by default, Custom Date for a Start/End range. Sold
+       By / Payment Status / Weight are deliberately left OUT here since this page needs no login and
+       is reachable by anyone with the link — same reasoning as removing them from the photo lightbox
+       earlier. -->
+  <div id="tabSold" style="display:none;">
+    <div class="card">
+      <div class="filters">
+        <div class="full" style="display:flex;gap:8px;">
+          <button class="btn btn-sec" id="soldModeTodayBtn" style="width:auto;padding:9px 16px;" onclick="setSoldMode('today')">Today</button>
+          <button class="btn btn-sec" id="soldModeCustomBtn" style="width:auto;padding:9px 16px;" onclick="setSoldMode('custom')">Custom Date</button>
+        </div>
+      </div>
+      <div class="filters" id="soldCustomBox" style="display:none;">
+        <div><label>Start Date</label><input type="date" id="soldStart"></div>
+        <div><label>End Date</label><input type="date" id="soldEnd"></div>
+      </div>
+      <button class="btn" onclick="loadSoldData()" style="margin-top:6px;">🔍 Show Sold Items</button>
+    </div>
+    <div id="soldSummary" class="note"></div>
+    <div id="soldBody" class="ov-table-wrap"></div>
+  </div><!-- /#tabSold -->
 </div>
 
 <footer class="brand-footer">
@@ -731,6 +800,153 @@ function infoHtml(r) {
     rows.map(([l, v, hl]) => `<tr${hl ? ' class="hl"' : ''}><td class="lbl">${escHtml(l)}</td><td class="val">${escHtml(v == null || v === '' ? '—' : v)}</td></tr>`).join('') +
     `</table>`;
 }
+
+// ============================================================
+// v-add (BRO: "stock phtos lo ee part add chei. without login... only count matrame ravali") —
+// Overview (counter → product/design count, count-only) + Sold Data (date-wise DSR sold list) tabs.
+// Both call the SAME StockBackend actions the main portal's Counter-wise report already uses
+// (summary / counterDetail / counterDimOptions / dailySales) — no new backend logic beyond adding
+// `design` to dailySales_'s output. Fully separate code path from the Photos tab above: doesn't touch
+// ALL_ITEMS, IndexedDB caching, or any existing function.
+// ============================================================
+function showTab(name) {
+  ['Photos', 'Overview', 'Sold'].forEach(t => {
+    document.getElementById('tab' + t).style.display = (t === name) ? '' : 'none';
+    document.getElementById('tabBtn' + t).classList.toggle('active', t === name);
+  });
+  if (name === 'Overview' && !OV.loadedTiles) ovLoadTiles();
+  if (name === 'Sold' && !SOLD.loadedOnce) loadSoldData();
+}
+
+// ---- Overview: counter tiles (stock-in-hand PCS only) -> product/design-wise count ----
+const OV = { loadedTiles: false, curCounter: null };
+
+async function ovLoadTiles() {
+  OV.loadedTiles = true;
+  const box = document.getElementById('ovTiles');
+  box.innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
+  try {
+    const res = await api({ action: 'summary' });
+    if (!res || !res.ok) throw new Error(res && res.error || 'err');
+    if (!res.counters || !res.counters.length) { box.innerHTML = '<div class="empty">No data.</div>'; return; }
+    box.innerHTML = res.counters.map(c => `
+      <div class="ov-tile" data-counter="${escHtml(c.counter)}" onclick="ovOpenCounter(this.dataset.counter)">
+        <div class="ov-name">${escHtml(c.counter)}</div>
+        <div class="ov-count">${c.total.pcs}</div>
+        <div class="ov-unit">PCS IN STOCK</div>
+      </div>`).join('');
+  } catch (e) {
+    box.innerHTML = '<div class="empty">Could not load. Check internet.</div>';
+  }
+}
+
+function ovBackToTiles() {
+  document.getElementById('ovDetailView').style.display = 'none';
+  document.getElementById('ovTilesView').style.display = '';
+}
+
+async function ovOpenCounter(counter) {
+  OV.curCounter = counter;
+  document.getElementById('ovTilesView').style.display = 'none';
+  document.getElementById('ovDetailView').style.display = '';
+  document.getElementById('ovDetailTitle').textContent = counter;
+  document.getElementById('ovByDesign').checked = false;
+  await ovLoadDimOptions();
+  ovLoadDetail();
+}
+
+// Bangle Size / Ring Size / Length dropdowns — same cascade rule as the Photos filters: only the sizes
+// that actually exist somewhere in THIS counter's stock get a dropdown at all.
+async function ovLoadDimOptions() {
+  const box = document.getElementById('ovDimFilters');
+  box.innerHTML = '';
+  try {
+    const res = await api({ action: 'counterDimOptions', counter: OV.curCounter });
+    if (!res || !res.ok) return;
+    let html = '';
+    const opt = (id, label, values) => {
+      if (!values || !values.length) return '';
+      return `<div><label>${label}</label><select id="${id}" onchange="ovLoadDetail()"><option value="">All</option>${values.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('')}</select></div>`;
+    };
+    html += opt('ovBangleSize', 'Bangle Size', res.bangleSizes);
+    html += opt('ovRingSize', 'Ring Size', res.ringSizes);
+    html += opt('ovLength', 'Length', res.lengths);
+    box.innerHTML = html;
+  } catch (e) {}
+}
+
+async function ovLoadDetail() {
+  const body = document.getElementById('ovDetailBody');
+  body.innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
+  const byDesign = document.getElementById('ovByDesign').checked ? '1' : '0';
+  const getVal = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+  try {
+    const res = await api({
+      action: 'counterDetail', counter: OV.curCounter, byDesign,
+      bangleSize: getVal('ovBangleSize'), ringSize: getVal('ovRingSize'), length: getVal('ovLength')
+    });
+    if (!res || !res.ok) throw new Error(res && res.error || 'err');
+    if (!res.rows.length) { body.innerHTML = '<div class="empty">No items.</div>'; return; }
+    let totalPcs = 0;
+    let html = `<div class="ov-table-wrap"><table class="ov-table"><thead><tr><th>Product</th>${res.byDesign ? '<th>Design</th>' : ''}<th style="text-align:right;">Count</th></tr></thead><tbody>`;
+    res.rows.forEach(r => {
+      totalPcs += r.pcs;
+      html += `<tr><td>${escHtml(r.product)}</td>${res.byDesign ? `<td>${escHtml(r.design || '—')}</td>` : ''}<td style="text-align:right;font-weight:800;color:var(--purple);">${r.pcs}</td></tr>`;
+    });
+    html += `</tbody></table></div><div class="note" style="text-align:right;padding-top:8px;">Total: <b>${totalPcs} pcs</b></div>`;
+    body.innerHTML = html;
+  } catch (e) {
+    body.innerHTML = '<div class="empty">Could not load.</div>';
+  }
+}
+
+// ---- Sold Data: date-wise DSR-sold Tag No / Product / Design (Today by default, or a Custom range) ----
+// Sold By / Payment Status / Weight are deliberately NOT shown here — this page needs no login, so
+// anyone with the link can open it; only Tag No/Product/Design/Counter (what was actually asked for).
+const SOLD = { mode: 'today', loadedOnce: false };
+
+function todayStr_ph() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function setSoldMode(mode) {
+  SOLD.mode = mode;
+  const todayBtn = document.getElementById('soldModeTodayBtn'), customBtn = document.getElementById('soldModeCustomBtn');
+  todayBtn.style.background = mode === 'today' ? 'var(--purple)' : '#fff';
+  todayBtn.style.color = mode === 'today' ? '#fff' : 'var(--purple)';
+  customBtn.style.background = mode === 'custom' ? 'var(--purple)' : '#fff';
+  customBtn.style.color = mode === 'custom' ? '#fff' : 'var(--purple)';
+  document.getElementById('soldCustomBox').style.display = mode === 'custom' ? '' : 'none';
+}
+async function loadSoldData() {
+  SOLD.loadedOnce = true;
+  const body = document.getElementById('soldBody'), summary = document.getElementById('soldSummary');
+  let start, end;
+  if (SOLD.mode === 'custom') {
+    start = document.getElementById('soldStart').value;
+    end = document.getElementById('soldEnd').value;
+    if (!start || !end) { body.innerHTML = '<div class="empty">Select both Start and End date.</div>'; summary.textContent = ''; return; }
+  } else {
+    start = end = todayStr_ph();
+  }
+  body.innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
+  summary.textContent = '';
+  try {
+    const res = await api({ action: 'dailySales', start, end });
+    if (!res || !res.ok) throw new Error(res && res.error || 'err');
+    if (!res.rows.length) { body.innerHTML = '<div class="empty">No items sold in this range.</div>'; return; }
+    summary.textContent = `Total Sold: ${res.pcs} pcs`;
+    let html = `<table class="ov-table"><thead><tr><th>Date</th><th>Tag No</th><th>Product</th><th>Design</th><th>Counter</th></tr></thead><tbody>`;
+    res.rows.forEach(r => {
+      html += `<tr><td>${fmtDMY(r.soldDate)}</td><td style="font-weight:800;color:var(--purple);">${escHtml(r.tagNo || '—')}</td><td>${escHtml(r.productName)}</td><td>${escHtml(r.design || '—')}</td><td>${escHtml(r.counter || '—')}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    body.innerHTML = html;
+  } catch (e) {
+    body.innerHTML = '<div class="empty">Could not load.</div>';
+  }
+}
+setSoldMode('today'); // sets the initial button colors before any tab is even opened
 
 populateWtRangeOptions(); // fixed 0–100 list, doesn't need any data loaded first
 initApp();
