@@ -304,7 +304,7 @@ const STOCK_GAS_URL = "https://script.google.com/macros/s/AKfycbyZR0GpuTCgy2ErrF
 // v-add (BRO's Opening/Closing Ledger — Sale comes from DSR entry, Outlet Issue from the DSR file's
 // own "Outlet Issue" tab): PASTE your DSR Web App URL here (the same one the DSR entry form itself
 // posts to) once DSRBackend.gs (with the new "ledgerData" action) is deployed.
-const DSR_GAS_URL = "PASTE_YOUR_DSR_WEB_APP_URL_HERE";
+const DSR_GAS_URL = "https://script.google.com/macros/s/AKfycbw19KcGbJEee6EK4YnznC0xa9inkJl-GOPhywR8xzyzIPY0-SqBHFSEktS_z4tdLZKA/exec";
 function dsrApi(params) {
   const qs = Object.entries(params).map(([k, v]) => k + '=' + encodeURIComponent(v == null ? '' : v)).join('&');
   return fetch(DSR_GAS_URL + '?' + qs).then(r => r.json());
