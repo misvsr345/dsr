@@ -184,12 +184,12 @@
 
 <div class="wrap">
   <div class="tabbar">
-    <button id="tabBtnPhotos" class="active" onclick="showTab('Photos')">🖼️ Photos</button>
-    <button id="tabBtnOverview" onclick="showTab('Overview')">📊 Overview</button>
+    <button id="tabBtnPhotos" onclick="showTab('Photos')">🖼️ Photos</button>
+    <button id="tabBtnOverview" class="active" onclick="showTab('Overview')">📊 Overview</button>
     <button id="tabBtnSold" onclick="showTab('Sold')">📦 Sold Data</button>
   </div>
 
-  <div id="tabPhotos">
+  <div id="tabPhotos" style="display:none;">
   <div class="card">
     <div class="filters">
       <div><label>Show</label>
@@ -227,7 +227,7 @@
        counter-wise / product-wise / design-wise STOCK-IN-HAND count, no weight, no login. Reuses the
        exact same summary/counterDetail/counterDimOptions backend actions already built for the main
        portal's Counter-wise report — no new backend logic, just a count-only view of it here. -->
-  <div id="tabOverview" style="display:none;">
+  <div id="tabOverview">
     <div id="ovTilesView">
       <div class="ov-grid" id="ovTiles"><div class="loading"><span class="spinner"></span>Loading...</div></div>
     </div>
@@ -575,6 +575,11 @@ async function initApp() {
   const cachedSold = await idbGet('meta', 'soldSnapshot');
   if (cachedSold && cachedSold.rows) SOLD_SNAPSHOT = cachedSold.rows;
   refreshOverviewSnapshots();
+
+  // BRO: "stock phto file open chesina ventane overview ravali" — Overview is now the tab shown the
+  // instant the file opens (Photos tab used to be first); this renders its tiles right away from
+  // whatever's cached, same as clicking the Overview button would.
+  ovLoadTiles();
 }
 
 // ---- Cascading filters (BRO: "counter select cheste aa counter lo unnavi matrame Product list lo
@@ -1287,12 +1292,14 @@ function loadSoldData() {
   // view ani feilds anni ravali" — Weight, Size (whichever of Length/Bangle Size/Ring Size applies to
   // that row's product, same rule as the Photos lightbox), Employee Name (soldBy) and a Photo view
   // button, on top of what was already shown.
-  // BRO: "tag no pai click cheste photo view avali" — Tag No cell itself is now also clickable (same
-  // viewSoldPhoto as the Photo button). "outlet isse items kuda chupinchu" — Outlet Issue rows (their
-  // dsrId is synced via nextOutletIssueId_() as "OI"+6 digits, distinct from a normal DSR ID) now get a
-  // visible Type badge so they don't blend in with regular Sale rows.
+  // BRO: "tag no pai click cheste photo view avali" — Tag No cell itself is clickable to view the photo.
+  // "malli chivara veiw option enduku, vardu remvoe chei" — the separate Photo/View-button column was
+  // redundant once the Tag No click does the same thing, so it's removed; Tag No click is now the only
+  // way to view the photo. "outlet isse items kuda chupinchu" — Outlet Issue rows (their dsrId is synced
+  // via nextOutletIssueId_() as "OI"+6 digits, distinct from a normal DSR ID) get a visible Type badge so
+  // they don't blend in with regular Sale rows.
   SOLD_ROWS_RENDERED = rows;
-  let html = `<table class="ov-table"><thead><tr><th>Date</th><th>Tag No</th><th>Product</th><th>Design</th><th>Counter</th><th>Weight (gm)</th><th>Size</th><th>Type</th><th>Employee</th><th>Photo</th></tr></thead><tbody>`;
+  let html = `<table class="ov-table"><thead><tr><th>Date</th><th>Tag No</th><th>Product</th><th>Design</th><th>Counter</th><th>Weight (gm)</th><th>Size</th><th>Type</th><th>Employee</th></tr></thead><tbody>`;
   rows.forEach((r, i) => {
     const kind = productKind(r.productName);
     const size = kind === 'chain' ? r.length : kind === 'bangle' ? r.bangleSize : kind === 'ring' ? r.ringSize : '';
@@ -1303,7 +1310,7 @@ function loadSoldData() {
     const tagCell = r.photo
       ? `<a href="javascript:void(0)" onclick="viewSoldPhoto(${i})" style="color:var(--purple-mid);text-decoration:underline;font-weight:700;cursor:pointer;">${escHtml(r.tagNo || '—')}</a>`
       : escHtml(r.tagNo || '—');
-    html += `<tr><td>${fmtDMY(r.soldDate)}</td><td>${tagCell}</td><td>${escHtml(r.productName)}</td><td>${escHtml(r.design || '—')}</td><td>${escHtml(r.counter || '—')}</td><td style="text-align:right;">${fmtWt(r.weight) || '—'}</td><td>${escHtml(size || '—')}</td><td>${typeBadge}</td><td>${escHtml(r.soldBy || '—')}</td><td>${r.photo ? `<button class="btn btn-sec" style="width:auto;padding:4px 10px;font-size:11px;" onclick="viewSoldPhoto(${i})">👁 View</button>` : '—'}</td></tr>`;
+    html += `<tr><td>${fmtDMY(r.soldDate)}</td><td>${tagCell}</td><td>${escHtml(r.productName)}</td><td>${escHtml(r.design || '—')}</td><td>${escHtml(r.counter || '—')}</td><td style="text-align:right;">${fmtWt(r.weight) || '—'}</td><td>${escHtml(size || '—')}</td><td>${typeBadge}</td><td>${escHtml(r.soldBy || '—')}</td></tr>`;
   });
   html += '</tbody></table>';
   body.innerHTML = html;
