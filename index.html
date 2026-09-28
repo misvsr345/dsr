@@ -84,8 +84,11 @@
   .nav-btn.left{left:8px;} .nav-btn.right{right:8px;}
   .ctr-lbl{text-align:center;color:#ddd;font-size:11.5px;padding:8px 0;background:#0c0c0c;flex-shrink:0;}
   .info-box{display:block;background:#fff;border-top:2px solid var(--gold);padding:8px 14px;max-height:26vh;overflow-y:auto;flex-shrink:0;}
-  table.info{width:100%;border-collapse:collapse;font-size:12.5px;}
-  table.info td{padding:5px 4px;border-bottom:1px dashed var(--border);}
+  /* BRO: "bro stock photo kuda update chesi ivu. all tables update chei" — same full-grid +
+     thick-outer-border treatment as the Overview/Ledger tables, applied to the photo lightbox's
+     item-detail table too. */
+  table.info{width:100%;border-collapse:collapse;font-size:12.5px;border:2px solid var(--gold);}
+  table.info td{padding:5px 4px;border:1px solid var(--border);}
   table.info td.lbl{color:var(--dmuted);font-weight:700;width:42%;}
   table.info td.val{font-weight:600;}
   /* BRO: "TAG NO AND LENTH KODDIGA HILITE AVALI. BANGLE SIZE, RING SIZE KUDA BOLD AVALI" */
@@ -340,6 +343,9 @@ function fmtDMY(s) {
   return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear();
 }
 function normTag(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+// BRO: "all weight data ni decimall chupinchu. for example 4grm, 4.000 ani chupinchu" — every weight
+// value shown (Weight (gm), Gross Wt, Net Wt in the photo detail table) always renders to 3 decimals.
+function fmtWt(v) { if (v == null || v === '') return ''; const n = parseFloat(v); return isNaN(n) ? String(v) : n.toFixed(3); }
 function api(params) {
   const qs = Object.entries(params).map(([k, v]) => k + '=' + encodeURIComponent(v == null ? '' : v)).join('&');
   return fetch(STOCK_GAS_URL + '?' + qs).then(r => r.json());
@@ -663,7 +669,8 @@ function renderDimFilters(opts, product) {
   const kind = productKind(product);
   let html = `<div><label>Design</label><select id="phDesign" onchange="applyFiltersAndRender()"><option value="">All</option>${(opts.designs || []).map(d => `<option>${escHtml(d)}</option>`).join('')}</select></div>`;
   if (kind === 'chain') {
-    html += `<div><label>Weight (gm)</label><select id="phWeight" onchange="applyFiltersAndRender()"><option value="">All</option>${(opts.weights || []).map(w => `<option>${escHtml(w)}</option>`).join('')}</select></div>`;
+    // BRO: "disign ki, lenth ki madhayana unna weithght drop dwon remove chei" — the Weight (gm)
+    // dropdown between Design and Length is gone; Weight Range (gm) checkbox below still covers that.
     html += `<div><label>Length</label><select id="phLength" onchange="applyFiltersAndRender()"><option value="">All</option>${(opts.lengths || []).map(l => `<option>${escHtml(l)}</option>`).join('')}</select></div>`;
   } else if (kind === 'bangle') {
     html += `<div><label>Bangle Size</label><select id="phBangleSize" onchange="applyFiltersAndRender()"><option value="">All</option>${(opts.bangleSizes || []).map(b => `<option>${escHtml(b)}</option>`).join('')}</select></div>`;
@@ -679,7 +686,7 @@ function currentFilters() {
   return {
     status: document.getElementById('phStatus').value, counter: document.getElementById('phCounter').value,
     product: val('phProduct'), design: val('phDesign'),
-    weight: val('phWeight'), length: val('phLength'), bangleSize: val('phBangleSize'), ringSize: val('phRingSize'),
+    length: val('phLength'), bangleSize: val('phBangleSize'), ringSize: val('phRingSize'),
     wtRangeOn: document.getElementById('phWtRangeOn').checked,
     wtFrom: val('phWtFrom'), wtTo: val('phWtTo'),
     q: document.getElementById('phQ').value.trim().toUpperCase()
@@ -693,7 +700,6 @@ function filterItems(items, f) {
     if (f.counter && (r.counter || '').trim() !== f.counter) return false;
     if (f.product && (r.productName || '').trim() !== f.product) return false;
     if (f.design && (r.design || '').trim() !== f.design) return false;
-    if (f.weight && String(r.weight || '').trim() !== f.weight) return false;
     if (f.length && String(r.length || '').trim() !== f.length) return false;
     if (f.bangleSize && String(r.bangleSize || '').trim() !== f.bangleSize) return false;
     if (f.ringSize && String(r.ringSize || '').trim() !== f.ringSize) return false;
@@ -920,8 +926,8 @@ function infoHtml(r) {
   const rows = [
     ['Tag No', r.tagNo || '—', true], ['Product', r.productName],
     !isDia ? ['Design', r.design] : null, !isDia ? ['Tunch', r.tunch] : null,
-    !isDia ? ['Weight (gm)', r.weight] : null,
-    isDia ? ['Gross Wt', r.gross] : null, isDia ? ['Net Wt', r.net] : null,
+    !isDia ? ['Weight (gm)', fmtWt(r.weight)] : null,
+    isDia ? ['Gross Wt', fmtWt(r.gross)] : null, isDia ? ['Net Wt', fmtWt(r.net)] : null,
     isDia ? ['Carat', r.carat] : null, isDia ? ['Clarity', r.clarity] : null, isDia ? ['Color', r.color] : null,
     sizeRow,
     ['Counter', r.counter],
