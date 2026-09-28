@@ -508,6 +508,40 @@ async function fetchSoldSnapshotFull() {
   if (!res || !res.ok) throw new Error((res && res.error) || 'Could not load sold data.');
   return res.rows || [];
 }
+
+// BRO: "stock phto file lo data laod avakapote reloda cheyadaniki oka button ivu. running page matrem
+// reloda avali" — a Reload button next to every "stuck loading / no data / could not load" message, and
+// it must only re-fetch the CURRENTLY OPEN tab (Photos, or Overview's tiles/detail/ledger sub-view, or
+// Sold Data) — never a full location.reload() (that would also lose whatever filters/date/counter the
+// person had picked). reloadBtnHtml() is the shared snippet every one of those messages appends.
+function reloadBtnHtml() {
+  return '<div style="margin-top:10px;"><button class="btn btn-sec" style="width:auto;padding:6px 16px;font-size:12px;" onclick="reloadCurrentTab()">🔄 Reload</button></div>';
+}
+function reloadCurrentTab() {
+  const tabPhotosOpen = document.getElementById('tabPhotos').style.display !== 'none';
+  const tabOverviewOpen = document.getElementById('tabOverview').style.display !== 'none';
+  if (tabPhotosOpen) {
+    document.getElementById('grid').innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
+    refreshSnapshot();
+    return;
+  }
+  if (tabOverviewOpen) {
+    if (document.getElementById('ovLedgerView').style.display !== 'none') {
+      document.getElementById('ovLedgerBody').innerHTML = '<div class="loading" style="color:var(--dmuted);"><span class="spinner"></span>Loading...</div>';
+    } else if (OV.curCounter) {
+      document.getElementById('ovDetailBody').innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
+    } else {
+      document.getElementById('ovTiles').innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
+    }
+  } else {
+    // Sold Data tab
+    document.getElementById('soldBody').innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
+  }
+  // Overview and Sold Data both read from the same STOCK_SNAPSHOT/SOLD_SNAPSHOT pair — this one call
+  // already knows (via the tab/sub-view checks inside it) to re-render whichever is currently open once
+  // the fresh data arrives, same as showTab()/the initial page load do.
+  refreshOverviewSnapshots();
+}
 async function refreshOverviewSnapshots() {
   if (!navigator.onLine) return;
   try {
@@ -552,7 +586,7 @@ async function refreshSnapshot() {
     prefetchAllImages(); // background — saves every photo locally, not just the ones actually opened
   } catch (e) {
     if (!ALL_ITEMS.length) {
-      document.getElementById('grid').innerHTML = `<div class="empty">Could not load.</div>`;
+      document.getElementById('grid').innerHTML = `<div class="empty">Could not load.</div>` + reloadBtnHtml();
     }
   }
 }
@@ -998,9 +1032,9 @@ function uniqSorted_(arr) {
 function ovLoadTiles() {
   const box = document.getElementById('ovTiles');
   if (!STOCK_SNAPSHOT.length) {
-    box.innerHTML = navigator.onLine
+    box.innerHTML = (navigator.onLine
       ? '<div class="loading"><span class="spinner"></span>Loading...</div>'
-      : '<div class="empty">No offline data saved yet — connect once to load.</div>';
+      : '<div class="empty">No offline data saved yet — connect once to load.</div>') + reloadBtnHtml();
     return;
   }
   // Union of the known counters (so a zero-stock counter still shows a 0 tile, same as before) with
@@ -1075,7 +1109,7 @@ function ovLoadDetail() {
   }
 
   if (!STOCK_SNAPSHOT.length) {
-    body.innerHTML = navigator.onLine ? '<div class="loading"><span class="spinner"></span>Loading...</div>' : '<div class="empty">No offline data saved yet — connect once to load.</div>';
+    body.innerHTML = (navigator.onLine ? '<div class="loading"><span class="spinner"></span>Loading...</div>' : '<div class="empty">No offline data saved yet — connect once to load.</div>') + reloadBtnHtml();
     return;
   }
   const g = {};
