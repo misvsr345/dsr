@@ -122,8 +122,11 @@
   .ov-tile .ov-name{font-size:11.5px;font-weight:800;color:#f1e2c6;text-transform:uppercase;letter-spacing:.4px;}
   .ov-tile .ov-count{font-family:'Spectral',serif;font-size:28px;font-weight:800;color:var(--gold);margin-top:6px;line-height:1;}
   .ov-tile .ov-unit{font-size:10px;color:rgba(255,255,255,.72);font-weight:700;letter-spacing:.3px;margin-top:2px;}
-  table.ov-table{width:100%;border-collapse:collapse;font-size:12.5px;}
-  table.ov-table th,table.ov-table td{padding:7px 5px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
+  /* BRO: "ee table lo kuda nilu and addamu ga all cell ki chutu boarder ivu" — same full-grid +
+     thick-outer-border treatment as the Ledger table, applied here too (Overview product-count table
+     + Sold Data table both use this class). */
+  table.ov-table{width:100%;border-collapse:collapse;font-size:12.5px;border:3px solid var(--gold);}
+  table.ov-table th,table.ov-table td{padding:7px 5px;border:1px solid var(--gold);text-align:left;white-space:nowrap;}
   /* BRO: "all data taluka letter style oke laga undi, all bold icharu, so only heading matrame bold
      ivu" — only the <th> heading row is bold now; every data <td> below (including the count/tag-no
      cells that used to be forced bold+colored inline) is plain, same weight as the rest. */
