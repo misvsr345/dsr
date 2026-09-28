@@ -1209,9 +1209,12 @@ async function ovLoadLedger() {
 
   if (!list.length) { body.innerHTML = '<div class="empty" style="color:var(--dmuted);">No ledger data for this counter yet.</div>'; return; }
 
-  let html = `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:right;">Opening</th><th style="text-align:right;">Closing</th><th style="text-align:right;">Sold</th><th style="text-align:right;">Return</th><th style="text-align:right;">Outlet<br>Issue</th></tr></thead><tbody>`;
+  // BRO: "products left alignment ok, remaing all center alinment ravali. and all heading names
+  // single line lo ravali" — Product (and Design) stay left-aligned; every other column, header and
+  // data cell alike, is centered, and no heading wraps to a 2nd line.
+  let html = `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:center;">Opening</th><th style="text-align:center;">Closing</th><th style="text-align:center;">Sold</th><th style="text-align:center;">Return</th><th style="text-align:center;">Outlet Issue</th></tr></thead><tbody>`;
   list.forEach(r => {
-    html += `<tr><td>${escHtml(r.product)}</td>${byDesign ? `<td>${escHtml(r.design || '—')}</td>` : ''}<td style="text-align:right;">${r.opening}</td><td style="text-align:right;">${r.closing}</td><td style="text-align:right;">${r.sold}</td><td style="text-align:right;">${r.ret}</td><td style="text-align:right;">${r.outlet}</td></tr>`;
+    html += `<tr><td>${escHtml(r.product)}</td>${byDesign ? `<td>${escHtml(r.design || '—')}</td>` : ''}<td style="text-align:center;">${r.opening}</td><td style="text-align:center;">${r.closing}</td><td style="text-align:center;">${r.sold}</td><td style="text-align:center;">${r.ret}</td><td style="text-align:center;">${r.outlet}</td></tr>`;
   });
   html += '</tbody></table></div>';
   body.innerHTML = html;
