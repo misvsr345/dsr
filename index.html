@@ -1268,12 +1268,37 @@ function loadSoldData() {
   let pcs = 0;
   rows.forEach(r => pcs += rowQty_(r));
   summary.textContent = `Total Sold: ${pcs} pcs`;
-  let html = `<table class="ov-table"><thead><tr><th>Date</th><th>Tag No</th><th>Product</th><th>Design</th><th>Counter</th></tr></thead><tbody>`;
-  rows.forEach(r => {
-    html += `<tr><td>${fmtDMY(r.soldDate)}</td><td>${escHtml(r.tagNo || '—')}</td><td>${escHtml(r.productName)}</td><td>${escHtml(r.design || '—')}</td><td>${escHtml(r.counter || '—')}</td></tr>`;
+  // BRO: "sold data lo date, tag no, poroduct, design, counter, weight, lenth, size... emp name, photo
+  // view ani feilds anni ravali" — Weight, Size (whichever of Length/Bangle Size/Ring Size applies to
+  // that row's product, same rule as the Photos lightbox), Employee Name (soldBy) and a Photo view
+  // button, on top of what was already shown.
+  SOLD_ROWS_RENDERED = rows;
+  let html = `<table class="ov-table"><thead><tr><th>Date</th><th>Tag No</th><th>Product</th><th>Design</th><th>Counter</th><th>Weight (gm)</th><th>Size</th><th>Employee</th><th>Photo</th></tr></thead><tbody>`;
+  rows.forEach((r, i) => {
+    const kind = productKind(r.productName);
+    const size = kind === 'chain' ? r.length : kind === 'bangle' ? r.bangleSize : kind === 'ring' ? r.ringSize : '';
+    html += `<tr><td>${fmtDMY(r.soldDate)}</td><td>${escHtml(r.tagNo || '—')}</td><td>${escHtml(r.productName)}</td><td>${escHtml(r.design || '—')}</td><td>${escHtml(r.counter || '—')}</td><td style="text-align:right;">${fmtWt(r.weight) || '—'}</td><td>${escHtml(size || '—')}</td><td>${escHtml(r.soldBy || '—')}</td><td>${r.photo ? `<button class="btn btn-sec" style="width:auto;padding:4px 10px;font-size:11px;" onclick="viewSoldPhoto(${i})">👁 View</button>` : '—'}</td></tr>`;
   });
   html += '</tbody></table>';
   body.innerHTML = html;
+}
+let SOLD_ROWS_RENDERED = [];
+async function viewSoldPhoto(idx) {
+  const r = SOLD_ROWS_RENDERED[idx]; if (!r || !r.photo) return;
+  const old = document.getElementById('soldPhotoModal'); if (old) old.remove();
+  const div = document.createElement('div');
+  div.id = 'soldPhotoModal';
+  div.className = 'overlay';
+  div.innerHTML = `<div class="stage-box" style="max-width:520px;max-height:80vh;">
+      <button class="close-x" onclick="document.getElementById('soldPhotoModal').remove()">✕</button>
+      <div class="stage" style="height:70vh;"><img id="soldPhotoImg" src="" alt="Loading..." style="width:100%;height:100%;object-fit:contain;"></div>
+    </div>`;
+  document.body.appendChild(div);
+  div.addEventListener('click', e => { if (e.target === div) div.remove(); });
+  const src = await resolveImgSrc(r.photo);
+  const img = document.getElementById('soldPhotoImg');
+  if (!img) return;
+  if (src) img.src = src; else img.alt = '📷 Not downloaded yet — connect once to view this photo offline';
 }
 setSoldMode('today'); // sets the initial button colors before any tab is even opened
 
