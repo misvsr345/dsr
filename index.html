@@ -1432,6 +1432,19 @@ setSoldMode('today'); // sets the initial button colors before any tab is even o
 
 populateWtRangeOptions(); // fixed 0–100 list, doesn't need any data loaded first
 initApp();
+
+// v-add (BRO: "every 5 mins ki sync backend lo run avali... 5 mins ki run ainapudu reload ani
+// chupinchakudadu, running page reload avakunda, automatic ga backend ki avali" — the header Sync
+// button above is manual/on-tap; this is the same fetch running automatically every 5 minutes in the
+// BACKGROUND, completely silently — it never calls reloadCurrentTab() (no "Loading..." wipe, no
+// spinner, no banner), it just quietly re-fetches Photos + Overview + Sold from the backend and lets
+// refreshSnapshot()/refreshOverviewSnapshots() drop the fresh data straight into whatever is already
+// on screen, exactly like they already do for the very first load — so open pages just keep drifting
+// up to date on their own, with no visible interruption at all.
+setInterval(() => {
+  if (!navigator.onLine || HEADER_SYNC_RUNNING) return;   // don't collide with a manual Sync tap
+  Promise.all([refreshSnapshot(), refreshOverviewSnapshots()]).catch(() => {});
+}, 5 * 60 * 1000);
 </script>
 </body>
 </html>
