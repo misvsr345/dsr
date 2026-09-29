@@ -25,6 +25,16 @@
   header .brandline::before,header .brandline::after{content:'';width:22px;height:1px;background:var(--gold);opacity:.7;}
   header .title{font-weight:800;font-size:19px;letter-spacing:2.5px;padding:0 8px;}
   header small{display:block;font-size:10.5px;font-weight:600;color:var(--gold);letter-spacing:1.6px;margin-top:5px;text-transform:uppercase;}
+  /* v-add (BRO: "header lo refresh+sync kalipi oka button ivu. click cheste backend lo jarigina
+     update ventane vachi, data load avvakapoina data vastundi" — one always-visible header button
+     that force-fetches everything fresh from the backend right now, regardless of which tab is open
+     or whether an earlier load ever succeeded — not just the "Reload" link that only ever appeared
+     buried inside an already-failed tab's error message). */
+  #headerSyncBtn{position:absolute;top:14px;right:14px;background:rgba(255,255,255,.14);border:1.5px solid var(--gold);color:#fff;
+    border-radius:20px;padding:6px 12px;font-size:11.5px;font-weight:700;display:flex;align-items:center;gap:5px;cursor:pointer;}
+  #headerSyncBtn:active{background:rgba(255,255,255,.28);}
+  #headerSyncBtn.spinning .hs-ic{display:inline-block;animation:hsspin 0.8s linear infinite;}
+  @keyframes hsspin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
   .wrap{max-width:960px;margin:0 auto;padding:14px;}
   .card{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px;}
   .brand-footer{border-top:3px solid var(--gold);background:var(--purple);color:#fff;text-align:center;padding:18px 16px 20px;margin-top:8px;}
@@ -176,6 +186,7 @@
 
 <div class="frame">
 <header>
+  <button id="headerSyncBtn" onclick="headerRefreshSync()" title="Refresh &amp; Sync — fetch the latest data now"><span class="hs-ic">🔄</span><span class="hs-lbl">Sync</span></button>
   <div class="brandline"><div class="title">VSR GOLD</div></div>
   <small>Stock Photos</small>
 </header>
@@ -590,6 +601,48 @@ async function refreshSnapshot() {
     }
   }
 }
+
+// v-add (BRO: "header lo refresh+sync kalipi oka button ivu. click cheste manual ga edaina new
+// update backend lo jarigindi ventane update avutundi. data load avvakapoina data vastundi" — one
+// header button that, on tap, force-fetches EVERYTHING fresh from the backend right now (Photos +
+// Overview + Sold Data together, whichever tab is open or not), so any just-made backend change
+// shows up immediately instead of waiting for the next natural page-open refresh, AND so a screen
+// that earlier failed to load (weak signal, backend hiccup) gets a real retry from one tap in the
+// header — not just the small "Reload" link that only ever showed up buried inside that one failed
+// tab's own error message.
+let HEADER_SYNC_RUNNING = false;
+async function headerRefreshSync() {
+  if (HEADER_SYNC_RUNNING) return;
+  const btn = document.getElementById('headerSyncBtn');
+  const banner = document.getElementById('syncBanner');
+  if (!navigator.onLine) {
+    if (banner) {
+      banner.style.display = 'block';
+      banner.textContent = '📴 Offline — connect to internet to sync.';
+      setTimeout(() => { if (banner.textContent.indexOf('Offline') > -1) { banner.style.display = 'none'; banner.textContent = ''; } }, 2500);
+    }
+    return;
+  }
+  HEADER_SYNC_RUNNING = true;
+  if (btn) { btn.classList.add('spinning'); btn.disabled = true; }
+  if (banner) { banner.style.display = 'block'; banner.textContent = '🔄 Syncing latest data...'; }
+  // Also re-show a loading state on whichever tab/sub-view is currently open, so a previously-failed
+  // screen visibly retries instead of looking like nothing happened.
+  reloadCurrentTab();
+  let ok = true;
+  try {
+    await Promise.all([refreshSnapshot(), refreshOverviewSnapshots()]);
+  } catch (e) {
+    ok = false;
+  }
+  if (btn) { btn.classList.remove('spinning'); btn.disabled = false; }
+  if (banner) {
+    banner.textContent = ok ? '✅ Updated just now' : '⚠️ Could not sync — check internet and try again';
+    setTimeout(() => { banner.style.display = 'none'; banner.textContent = ''; }, 2200);
+  }
+  HEADER_SYNC_RUNNING = false;
+}
+
 async function initApp() {
   updateOnlineBanner();
   const cached = await idbGet('meta', 'snapshot');
