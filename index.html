@@ -1445,6 +1445,31 @@ setInterval(() => {
   if (!navigator.onLine || HEADER_SYNC_RUNNING) return;   // don't collide with a manual Sync tap
   Promise.all([refreshSnapshot(), refreshOverviewSnapshots()]).catch(() => {});
 }, 5 * 60 * 1000);
+
+// v-add (BRO: "file open chesinapudu refresh data ravadam ledu, sync click chestene vastundi. file
+// open chesina ventane... auto sync avali" — on mobile, re-opening this file (switching back from
+// another app/tab, or re-tapping a home-screen shortcut) usually does NOT re-run the page's JS at
+// all: the browser just restores the page exactly as it was left (bfcache), so initApp() above never
+// fires again and the screen keeps showing whatever was last loaded — only a real reload (the header
+// Sync button, or a hard pull-to-refresh drag that forces the browser to reload) actually re-fetches.
+// These two listeners catch both of those "came back to an already-open page" moments and run the
+// same silent background sync as the 5-minute timer above — no "Loading..." wipe, no visible reload.
+let LAST_AUTO_SYNC_TS = 0;
+function silentAutoSyncIfDue() {
+  if (!navigator.onLine || HEADER_SYNC_RUNNING) return;
+  const now = Date.now();
+  if (now - LAST_AUTO_SYNC_TS < 15000) return; // avoid double-firing (pageshow + visibilitychange together)
+  LAST_AUTO_SYNC_TS = now;
+  Promise.all([refreshSnapshot(), refreshOverviewSnapshots()]).catch(() => {});
+}
+// Fires on every page load AND on a bfcache restore (e.vent.persisted === true is the "was suspended,
+// not truly reloaded" case — exactly the one that used to show stale data).
+window.addEventListener('pageshow', () => { silentAutoSyncIfDue(); });
+// Fires when the tab/app comes back to the foreground (covers switching apps on mobile and coming
+// back, which doesn't always trigger 'pageshow').
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') silentAutoSyncIfDue();
+});
 </script>
 </body>
 </html>
