@@ -141,6 +141,9 @@
   @media (max-width:560px){
     .tabbar button{flex:1 1 calc(33.333% - 6px);font-size:11px;padding:9px 2px;}
   }
+  /* v-add (BRO: "aa page open ayyaka, aa page ki related name ravali" — a heading at the top of each
+     tab's content, right under the tab bar, naming what that tab actually shows in full). */
+  .tab-heading{font-weight:800;font-size:16px;color:var(--purple);margin:2px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--gold);}
   .ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
   /* BRO: "file color kuda gold and purple tho fill ivu" — tile filled with the same
      purple-to-purple-mid gradient + gold border/top-stripe already used for the header/footer, instead
@@ -209,6 +212,7 @@
   </div>
 
   <div id="tabPhotos" style="display:none;">
+  <div class="tab-heading">🖼️ Stock Photos</div>
   <div class="card">
     <div class="filters">
       <div><label>Show</label>
@@ -248,6 +252,7 @@
        portal's Counter-wise report — no new backend logic, just a count-only view of it here. -->
   <div id="tabOverview">
     <div id="ovTilesView">
+      <div class="tab-heading">📊 Stock Overview</div>
       <div class="ov-grid" id="ovTiles"><div class="loading"><span class="spinner"></span>Loading...</div></div>
     </div>
     <div id="ovDetailView" style="display:none;">
@@ -301,10 +306,12 @@
        is reachable by anyone with the link — same reasoning as removing them from the photo lightbox
        earlier. -->
   <div id="tabSold" style="display:none;">
+    <div class="tab-heading">📦 Sold Data (DSR Entry Data)</div>
     <div class="card">
       <div class="filters">
         <div class="full" style="display:flex;gap:8px;">
           <button class="btn btn-sec" id="soldModeTodayBtn" style="width:auto;padding:9px 16px;" onclick="setSoldMode('today')">Today</button>
+          <button class="btn btn-sec" id="soldModeYesterdayBtn" style="width:auto;padding:9px 16px;" onclick="setSoldMode('yesterday')">Yesterday</button>
           <button class="btn btn-sec" id="soldModeCustomBtn" style="width:auto;padding:9px 16px;" onclick="setSoldMode('custom')">Custom Date</button>
         </div>
       </div>
@@ -328,6 +335,7 @@
        already uses (a received item later sold still shows here, since Sold rows keep their original
        entryType too) — no new backend call, works offline like Overview/Sold Data. -->
   <div id="tabReceiving" style="display:none;">
+    <div class="tab-heading">📥 Stock Receiving Hub</div>
     <div class="card">
       <div class="filters">
         <div><label>Counter</label><select id="recvCounter" onchange="loadReceivingData()"><option value="">All</option></select></div>
@@ -345,6 +353,7 @@
        ledgerData action the Ledger already uses (uptoDate = today gets the full list) and cached the
        same way (LEDGER_CACHE). -->
   <div id="tabRdr" style="display:none;">
+    <div class="tab-heading">↩️ Return / Damage / Repair</div>
     <div class="card">
       <div class="filters">
         <div><label>Counter</label><select id="rdrCounter" onchange="loadRdrData()"><option value="">All</option></select></div>
@@ -1586,11 +1595,11 @@ function todayStr_ph() {
 }
 function setSoldMode(mode) {
   SOLD.mode = mode;
-  const todayBtn = document.getElementById('soldModeTodayBtn'), customBtn = document.getElementById('soldModeCustomBtn');
-  todayBtn.style.background = mode === 'today' ? 'var(--purple)' : '#fff';
-  todayBtn.style.color = mode === 'today' ? '#fff' : 'var(--purple)';
-  customBtn.style.background = mode === 'custom' ? 'var(--purple)' : '#fff';
-  customBtn.style.color = mode === 'custom' ? '#fff' : 'var(--purple)';
+  const todayBtn = document.getElementById('soldModeTodayBtn'), yestBtn = document.getElementById('soldModeYesterdayBtn'), customBtn = document.getElementById('soldModeCustomBtn');
+  [[todayBtn, 'today'], [yestBtn, 'yesterday'], [customBtn, 'custom']].forEach(([btn, m]) => {
+    btn.style.background = mode === m ? 'var(--purple)' : '#fff';
+    btn.style.color = mode === m ? '#fff' : 'var(--purple)';
+  });
   document.getElementById('soldCustomBox').style.display = mode === 'custom' ? '' : 'none';
 }
 function loadSoldData() {
@@ -1600,6 +1609,8 @@ function loadSoldData() {
     start = document.getElementById('soldStart').value;
     end = document.getElementById('soldEnd').value;
     if (!start || !end) { body.innerHTML = '<div class="empty">Select both Start and End date.</div>'; summary.textContent = ''; return; }
+  } else if (SOLD.mode === 'yesterday') {
+    start = end = prevDateStr_(todayStr_ph());
   } else {
     start = end = todayStr_ph();
   }
