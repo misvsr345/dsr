@@ -432,6 +432,19 @@ function fmtPhone(p) {
   const v = String(p == null ? '' : p).trim();
   return v ? '📞 ' + v : v;
 }
+// v-fix (BRO: "size rakunda, ila vastundi emiti" — screenshot showed Bangle Size cells printing
+// "2026-05-01T18:30:00.000Z" instead of a real size. Google Sheets auto-converts a plain-looking size
+// like "5/1" into an actual date if that column isn't formatted as Plain Text — from then on, every
+// read of that cell comes back as a full date, not the size that was typed. Showing that raw
+// date-time string is more confusing than showing nothing, so it's blanked here instead wherever a
+// Bangle/Ring Size or Length value is displayed. The real fix on the Stock sheet: set the Bangle
+// Size/Ring Size/Length columns to Plain Text format (Format → Number → Plain Text) so this stops
+// happening for new entries, and manually retype the size for any tag already affected.
+function fmtSize(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s) return '';
+  return /^\d{4}-\d{2}-\d{2}T/.test(s) ? '' : s;
+}
 function fmtDMY(s) {
   if (!s) return '—';
   const d = new Date(s);
@@ -843,9 +856,9 @@ function reloadDimFilters() {
   renderDimFilters({
     designs: uniqSorted(scoped.map(r => r.design)),
     weights: uniqSorted(scoped.map(r => r.weight)),
-    lengths: uniqSorted(scoped.map(r => r.length)),
-    bangleSizes: uniqSorted(scoped.map(r => r.bangleSize)),
-    ringSizes: uniqSorted(scoped.map(r => r.ringSize))
+    lengths: uniqSorted(scoped.map(r => fmtSize(r.length))),
+    bangleSizes: uniqSorted(scoped.map(r => fmtSize(r.bangleSize))),
+    ringSizes: uniqSorted(scoped.map(r => fmtSize(r.ringSize)))
   }, product);
 }
 function renderDimFilters(opts, product) {
@@ -884,9 +897,9 @@ function filterItems(items, f) {
     if (f.counter && (r.counter || '').trim() !== f.counter) return false;
     if (f.product && (r.productName || '').trim() !== f.product) return false;
     if (f.design && (r.design || '').trim() !== f.design) return false;
-    if (f.length && String(r.length || '').trim() !== f.length) return false;
-    if (f.bangleSize && String(r.bangleSize || '').trim() !== f.bangleSize) return false;
-    if (f.ringSize && String(r.ringSize || '').trim() !== f.ringSize) return false;
+    if (f.length && fmtSize(r.length) !== f.length) return false;
+    if (f.bangleSize && fmtSize(r.bangleSize) !== f.bangleSize) return false;
+    if (f.ringSize && fmtSize(r.ringSize) !== f.ringSize) return false;
     if (wtFrom != null || wtTo != null) {
       const w = parseFloat(r.weight);
       if (isNaN(w)) return false;
@@ -1101,9 +1114,9 @@ function infoHtml(r) {
   // item's product shows up, same as the filter dropdowns already do.
   const kind = productKind(r.productName);
   let sizeRow = null;
-  if (kind === 'chain' && r.length) sizeRow = ['Length', r.length, true];
-  else if (kind === 'bangle' && r.bangleSize) sizeRow = ['Bangle Size', r.bangleSize, true];
-  else if (kind === 'ring' && r.ringSize) sizeRow = ['Ring Size', r.ringSize, true];
+  if (kind === 'chain' && fmtSize(r.length)) sizeRow = ['Length', fmtSize(r.length), true];
+  else if (kind === 'bangle' && fmtSize(r.bangleSize)) sizeRow = ['Bangle Size', fmtSize(r.bangleSize), true];
+  else if (kind === 'ring' && fmtSize(r.ringSize)) sizeRow = ['Ring Size', fmtSize(r.ringSize), true];
   // BRO: "TYPE VADDULE, PRODUCT FROM KUDA NO NEED" — dropped both; "TAG NO AND LENTH KODDIGA HILITE
   // AVALI, BANGLE SIZE RING SIZE KUDA BOLD AVALI" — Tag No and whichever size field applies get the
   // highlighted/bold treatment (the 3rd item in each row below).
@@ -1208,9 +1221,9 @@ function ovOpenCounter(counter) {
 function ovLoadDimOptions() {
   const box = document.getElementById('ovDimFilters');
   const rows = STOCK_SNAPSHOT.filter(r => rowCounter_(r) === OV.curCounter);
-  const bangleSizes = uniqSorted_(rows.map(r => String(r.bangleSize || '').trim()).filter(Boolean));
-  const ringSizes = uniqSorted_(rows.map(r => String(r.ringSize || '').trim()).filter(Boolean));
-  const lengths = uniqSorted_(rows.map(r => String(r.length || '').trim()).filter(Boolean));
+  const bangleSizes = uniqSorted_(rows.map(r => fmtSize(r.bangleSize)).filter(Boolean));
+  const ringSizes = uniqSorted_(rows.map(r => fmtSize(r.ringSize)).filter(Boolean));
+  const lengths = uniqSorted_(rows.map(r => fmtSize(r.length)).filter(Boolean));
   const opt = (id, label, values) => !values.length ? '' :
     `<div><label>${label}</label><select id="${id}" onchange="ovLoadDetail()"><option value="">All</option>${values.map(v => `<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('')}</select></div>`;
   box.innerHTML = opt('ovBangleSize', 'Bangle Size', bangleSizes) + opt('ovRingSize', 'Ring Size', ringSizes) + opt('ovLength', 'Length', lengths);
@@ -1229,9 +1242,9 @@ function ovLoadDetail() {
   const wtTo = wtRangeOn ? parseFloat(getVal('ovWtTo')) : NaN;
 
   let rows = STOCK_SNAPSHOT.filter(r => rowCounter_(r) === OV.curCounter);
-  if (bangleSize) rows = rows.filter(r => String(r.bangleSize || '').trim() === bangleSize);
-  if (ringSize) rows = rows.filter(r => String(r.ringSize || '').trim() === ringSize);
-  if (length) rows = rows.filter(r => String(r.length || '').trim() === length);
+  if (bangleSize) rows = rows.filter(r => fmtSize(r.bangleSize) === bangleSize);
+  if (ringSize) rows = rows.filter(r => fmtSize(r.ringSize) === ringSize);
+  if (length) rows = rows.filter(r => fmtSize(r.length) === length);
   if (wtRangeOn && (!isNaN(wtFrom) || !isNaN(wtTo))) {
     rows = rows.filter(r => {
       const w = parseFloat(r.weight);
@@ -1638,7 +1651,7 @@ function loadSoldData() {
   let html = `<table class="ov-table"><thead><tr><th>Date</th><th>Tag No</th><th>Product</th><th>Design</th><th>Counter</th><th>Weight (gm)</th><th>Size</th><th>Type</th><th>Employee</th></tr></thead><tbody>`;
   rows.forEach((r, i) => {
     const kind = productKind(r.productName);
-    const size = kind === 'chain' ? r.length : kind === 'bangle' ? r.bangleSize : kind === 'ring' ? r.ringSize : '';
+    const size = kind === 'chain' ? fmtSize(r.length) : kind === 'bangle' ? fmtSize(r.bangleSize) : kind === 'ring' ? fmtSize(r.ringSize) : '';
     const isOutlet = /^OI\d{6}$/.test(String(r.dsrId || ''));
     const typeBadge = isOutlet
       ? `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;background:#fff3cd;color:#8a5a00;border:1px solid #e0b34d;">Outlet Issue</span>`
