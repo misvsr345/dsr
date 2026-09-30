@@ -6,7 +6,7 @@
 <title>VSR GOLD — Photos</title>
 <!-- v-add (BRO: "spectral font ivu" — Overview tile count numbers): Spectral, a serif Google Font, for
      that premium/jewellery-boutique number look instead of the plain body sans-serif. -->
-<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   :root{
     /* BRO: "total file color change chei. ee dark red emi baladu" — deep royal blue + gold instead
@@ -16,7 +16,7 @@
     --red:#C0392B; --green:#2E8B57;
   }
   *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Spectral',serif;}
   /* BRO: "front page open avutundi kada, dani chuttu border ivu" — the landing/list page (this page,
      not the photo viewer) gets a full border all the way round, like a boutique card. */
   .frame{max-width:1000px;margin:0 auto;min-height:100vh;background:var(--card);border:1px solid var(--border);box-shadow:0 0 40px rgba(11,46,107,.10);}
@@ -394,7 +394,7 @@ function dsrApi(params) {
 // Store details shown in the footer at the bottom of the page.
 const STORE_ADDRESS_LINES = [
   "Bada Bazar, Berhampur - 760002",
-  "Contact: 8117879916",
+  "📞 8117879916",
   "www.vsrgold.com &nbsp;·&nbsp; vsrgold2025@gmail.com"
 ];
 
@@ -408,6 +408,20 @@ function escHtml(s) {
 }
 function escJs(s) {
   return String(s == null ? '' : s).replace(/[\\'"\n\r]/g, c => ({'\\':'\\\\',"'":"\\'",'"':'\\"','\n':'\\n','\r':'\\r'}[c]));
+}
+// v-add (BRO: "all data proper case lo matrame kani pinchali... VSR GOLD ekkada unna capital undali" —
+// display-only Title Case for names/products/addresses/remarks/counters. NEVER for Tag No, IDs, dates,
+// numbers, emails or URLs — those stay exactly as stored. "VSR GOLD" always stays full-caps.
+function properCase(s) {
+  if (s == null || s === '') return s;
+  const t = String(s).toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  return t.replace(/\bVsr\s+Gold\b/gi, 'VSR GOLD');
+}
+// v-add (BRO: "need unna dagara contact symbol ravali") — a 📞 prefix wherever a phone/contact number
+// is DISPLAYED to the user; never added to the stored value.
+function fmtPhone(p) {
+  const v = String(p == null ? '' : p).trim();
+  return v ? '📞 ' + v : v;
 }
 function fmtDMY(s) {
   if (!s) return '—';
@@ -892,7 +906,7 @@ function loadMore() { VISIBLE.count = Math.min(VISIBLE.count + PH.limit, PH.item
 
 function tileHtml(r, idx) {
   const pill = r.status === 'sold' ? '<span class="pill" style="background:var(--red);">SOLD</span>' : '<span class="pill" style="background:var(--green);">STOCK</span>';
-  const label = r.tagNo || r.productName || 'Item';
+  const label = r.tagNo || properCase(r.productName) || 'Item';
   return `<div class="tile" data-photo="${escHtml(r.photo || '')}" onclick="openViewer(${idx})">
       <img alt="${escHtml(label)}">
       ${pill}
@@ -1061,7 +1075,7 @@ async function renderStage() {
   const lbl = document.getElementById('phCtrLbl');
   const box = document.getElementById('phInfoBox');
   img.removeAttribute('src'); img.alt = 'Loading...';
-  lbl.textContent = (r.tagNo || r.productName || 'Item') + '  ·  ' + (PH.openIdx + 1) + ' / ' + PH.items.length + (r.status === 'sold' ? '  ·  SOLD' : '  ·  IN STOCK');
+  lbl.textContent = (r.tagNo || properCase(r.productName) || 'Item') + '  ·  ' + (PH.openIdx + 1) + ' / ' + PH.items.length + (r.status === 'sold' ? '  ·  SOLD' : '  ·  IN STOCK');
   // Fixed table, always shown, updates immediately — doesn't wait on the image (BRO: "phto taluka data
   // fix ga chinna table laga chesi, kinda fix ga pettu").
   if (box) box.innerHTML = infoHtml(r);
@@ -1085,13 +1099,13 @@ function infoHtml(r) {
   // AVALI, BANGLE SIZE RING SIZE KUDA BOLD AVALI" — Tag No and whichever size field applies get the
   // highlighted/bold treatment (the 3rd item in each row below).
   const rows = [
-    ['Tag No', r.tagNo || '—', true], ['Product', r.productName],
-    !isDia ? ['Design', r.design] : null, !isDia ? ['Tunch', r.tunch] : null,
+    ['Tag No', r.tagNo || '—', true], ['Product', properCase(r.productName)],
+    !isDia ? ['Design', properCase(r.design)] : null, !isDia ? ['Tunch', r.tunch] : null,
     !isDia ? ['Weight (gm)', fmtWt(r.weight)] : null,
     isDia ? ['Gross Wt', fmtWt(r.gross)] : null, isDia ? ['Net Wt', fmtWt(r.net)] : null,
     isDia ? ['Carat', r.carat] : null, isDia ? ['Clarity', r.clarity] : null, isDia ? ['Color', r.color] : null,
     sizeRow,
-    ['Counter', r.counter],
+    ['Counter', properCase(r.counter)],
     r.status === 'sold' ? ['Sold Date', fmtDMY(r.soldDate)] : null
   ].filter(Boolean);
   return `<table class="info">` +
@@ -1236,7 +1250,7 @@ function ovLoadDetail() {
   let html = `<div class="ov-table-wrap"><table class="ov-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:right;">Count</th></tr></thead><tbody>`;
   list.forEach(r => {
     totalPcs += r.pcs;
-    html += `<tr><td>${escHtml(r.product)}</td>${byDesign ? `<td>${escHtml(r.design || '—')}</td>` : ''}<td style="text-align:right;">${r.pcs}</td></tr>`;
+    html += `<tr><td>${escHtml(properCase(r.product))}</td>${byDesign ? `<td>${escHtml(properCase(r.design) || '—')}</td>` : ''}<td style="text-align:right;">${r.pcs}</td></tr>`;
   });
   html += `</tbody></table></div><div class="note" style="text-align:right;padding-top:8px;">Total: <b>${totalPcs} pcs</b></div>`;
   body.innerHTML = html;
@@ -1425,8 +1439,8 @@ async function ovLoadLedger() {
   }, { opening: 0, closing: 0, receiving: 0, sold: 0, ret: 0, outlet: 0 });
   let html = `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:center;">Opening</th><th style="text-align:center;">Closing</th><th style="text-align:center;">Receiving</th><th style="text-align:center;">Sold</th><th style="text-align:center;">Return</th><th style="text-align:center;">Outlet Issue</th></tr></thead><tbody>`;
   list.forEach(r => {
-    const retCell = r.ret > 0 ? `<a href="#" onclick="ovShowRdrDetail('${escJs(r.key)}','${dateVal}','${escJs(r.product)}',${byDesign});return false;" style="color:#B03A2E;font-weight:800;text-decoration:underline;">${r.ret}</a>` : r.ret;
-    html += `<tr><td>${escHtml(r.product)}</td>${byDesign ? `<td>${escHtml(r.design || '—')}</td>` : ''}<td style="text-align:center;">${r.opening}</td><td style="text-align:center;">${r.closing}</td><td style="text-align:center;">${r.receiving}</td><td style="text-align:center;">${r.sold}</td><td style="text-align:center;">${retCell}</td><td style="text-align:center;">${r.outlet}</td></tr>`;
+    const retCell = r.ret > 0 ? `<a href="#" onclick="ovShowRdrDetail('${escJs(r.key)}','${dateVal}','${escJs(properCase(r.product))}',${byDesign});return false;" style="color:#B03A2E;font-weight:800;text-decoration:underline;">${r.ret}</a>` : r.ret;
+    html += `<tr><td>${escHtml(properCase(r.product))}</td>${byDesign ? `<td>${escHtml(properCase(r.design) || '—')}</td>` : ''}<td style="text-align:center;">${r.opening}</td><td style="text-align:center;">${r.closing}</td><td style="text-align:center;">${r.receiving}</td><td style="text-align:center;">${r.sold}</td><td style="text-align:center;">${retCell}</td><td style="text-align:center;">${r.outlet}</td></tr>`;
   });
   html += `<tr style="font-weight:800;border-top:2px solid var(--gold);"><td>Total</td>${byDesign ? '<td></td>' : ''}<td style="text-align:center;">${tot.opening}</td><td style="text-align:center;">${tot.closing}</td><td style="text-align:center;">${tot.receiving}</td><td style="text-align:center;">${tot.sold}</td><td style="text-align:center;">${tot.ret}</td><td style="text-align:center;">${tot.outlet}</td></tr>`;
   html += '</tbody></table></div>';
@@ -1445,7 +1459,7 @@ function ovShowRdrDetail(key, date, productLabel, byDesign) {
     inner += '<div class="empty" style="padding:20px 0;">No detail found.</div>';
   } else {
     inner += `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Tag No</th><th>Reason</th><th>Employee</th></tr></thead><tbody>` +
-      rows.map(r => `<tr><td><b>${escHtml(r.tagNo || '—')}</b></td><td>${escHtml(r.reason || '—')}</td><td>${escHtml(r.employee || '—')}</td></tr>`).join('') +
+      rows.map(r => `<tr><td><b>${escHtml(r.tagNo || '—')}</b></td><td>${escHtml(r.reason || '—')}</td><td>${escHtml(properCase(r.employee) || '—')}</td></tr>`).join('') +
       '</tbody></table></div>';
   }
   ovSimpleModal(inner);
@@ -1495,7 +1509,7 @@ function loadReceivingData() {
   summary.textContent = rows.length + ' entr' + (rows.length === 1 ? 'y' : 'ies') + ' — ' + totalPcs + ' pcs';
   let html = '<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Date</th><th>Tag No</th><th>Product</th><th>Design</th><th>Counter</th><th style="text-align:center;">Qty</th><th style="text-align:center;">Weight</th></tr></thead><tbody>';
   rows.forEach(r => {
-    html += `<tr><td>${escHtml(r.entryDate || '—')}</td><td>${escHtml(r.tagNo || '—')}</td><td>${escHtml(r.productName || '')}</td><td>${escHtml(r.design || '—')}</td><td>${escHtml(rowCounter_(r))}</td><td style="text-align:center;">${rowQty_(r)}</td><td style="text-align:center;">${r.weight || '—'}</td></tr>`;
+    html += `<tr><td>${escHtml(r.entryDate || '—')}</td><td>${escHtml(r.tagNo || '—')}</td><td>${escHtml(properCase(r.productName) || '')}</td><td>${escHtml(properCase(r.design) || '—')}</td><td>${escHtml(rowCounter_(r))}</td><td style="text-align:center;">${rowQty_(r)}</td><td style="text-align:center;">${r.weight || '—'}</td></tr>`;
   });
   html += '</tbody></table></div>';
   body.innerHTML = html;
@@ -1554,7 +1568,7 @@ async function loadRdrData() {
   summary.textContent = rows.length + ' entr' + (rows.length === 1 ? 'y' : 'ies');
   let html = '<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Date</th><th>Tag No</th><th>Product</th><th>Design</th><th>Reason</th><th>Counter</th></tr></thead><tbody>';
   rows.forEach(r => {
-    html += `<tr><td>${escHtml(r.date || '—')}</td><td>${escHtml(r.tagNo || '—')}</td><td>${escHtml(r.productName || '')}</td><td>${escHtml(r.design || '—')}</td><td>${escHtml(r.reason || '—')}</td><td>${escHtml(r.counter || '—')}</td></tr>`;
+    html += `<tr><td>${escHtml(r.date || '—')}</td><td>${escHtml(r.tagNo || '—')}</td><td>${escHtml(properCase(r.productName) || '')}</td><td>${escHtml(properCase(r.design) || '—')}</td><td>${escHtml(r.reason || '—')}</td><td>${escHtml(r.counter || '—')}</td></tr>`;
   });
   html += '</tbody></table></div>';
   body.innerHTML = html;
@@ -1621,7 +1635,7 @@ function loadSoldData() {
     const tagCell = r.photo
       ? `<a href="javascript:void(0)" onclick="viewSoldPhoto(${i})" style="color:var(--purple-mid);text-decoration:underline;font-weight:700;cursor:pointer;">${escHtml(r.tagNo || '—')}</a>`
       : escHtml(r.tagNo || '—');
-    html += `<tr><td>${fmtDMY(r.soldDate)}</td><td>${tagCell}</td><td>${escHtml(r.productName)}</td><td>${escHtml(r.design || '—')}</td><td>${escHtml(r.counter || '—')}</td><td style="text-align:right;">${fmtWt(r.weight) || '—'}</td><td>${escHtml(size || '—')}</td><td>${typeBadge}</td><td>${escHtml(r.soldBy || '—')}</td></tr>`;
+    html += `<tr><td>${fmtDMY(r.soldDate)}</td><td>${tagCell}</td><td>${escHtml(properCase(r.productName))}</td><td>${escHtml(properCase(r.design) || '—')}</td><td>${escHtml(r.counter || '—')}</td><td style="text-align:right;">${fmtWt(r.weight) || '—'}</td><td>${escHtml(size || '—')}</td><td>${typeBadge}</td><td>${escHtml(properCase(r.soldBy) || '—')}</td></tr>`;
   });
   html += '</tbody></table>';
   body.innerHTML = html;
