@@ -132,9 +132,15 @@
 
   /* v-add (BRO: no-login Overview + Sold Data tabs, count-only stock check for employees):
      simple 3-way tab bar reusing the existing .btn/.btn-sec look, no new color system. */
-  .tabbar{display:flex;gap:6px;margin-bottom:10px;}
-  .tabbar button{flex:1;padding:10px 4px;border-radius:10px;border:1.5px solid var(--purple);background:#fff;color:var(--purple);font-weight:800;font-size:12px;cursor:pointer;}
+  .tabbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+  .tabbar button{flex:1 1 auto;min-width:0;padding:10px 4px;border-radius:10px;border:1.5px solid var(--purple);background:#fff;color:var(--purple);font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap;}
   .tabbar button.active{background:var(--purple);color:#fff;}
+  /* BRO: "mobile lo tab names two times avutundi" — 5 tabs don't fit one line on a phone; each button's
+     text was wrapping mid-word instead. Below 560px, force a clean 3-then-2 grid (two full rows) so
+     every label stays on a single line. */
+  @media (max-width:560px){
+    .tabbar button{flex:1 1 calc(33.333% - 6px);font-size:11px;padding:9px 2px;}
+  }
   .ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
   /* BRO: "file color kuda gold and purple tho fill ivu" — tile filled with the same
      purple-to-purple-mid gradient + gold border/top-stripe already used for the header/footer, instead
@@ -195,11 +201,11 @@
 
 <div class="wrap">
   <div class="tabbar">
-    <button id="tabBtnPhotos" onclick="showTab('Photos')">🖼️ Photos</button>
     <button id="tabBtnOverview" class="active" onclick="showTab('Overview')">📊 Overview</button>
-    <button id="tabBtnSold" onclick="showTab('Sold')">📦 Sold Data</button>
     <button id="tabBtnReceiving" onclick="showTab('Receiving')">📥 Receiving</button>
-    <button id="tabBtnRdr" onclick="showTab('Rdr')">↩️ Return/Damage/Repair</button>
+    <button id="tabBtnSold" onclick="showTab('Sold')">📦 Sold</button>
+    <button id="tabBtnRdr" onclick="showTab('Rdr')">↩️ RDR</button>
+    <button id="tabBtnPhotos" onclick="showTab('Photos')">🖼️ Photos</button>
   </div>
 
   <div id="tabPhotos" style="display:none;">
@@ -568,7 +574,7 @@ async function fetchSoldSnapshotFull() {
 // Sold Data) — never a full location.reload() (that would also lose whatever filters/date/counter the
 // person had picked). reloadBtnHtml() is the shared snippet every one of those messages appends.
 function reloadBtnHtml() {
-  return '<div style="margin-top:10px;"><button class="btn btn-sec" style="width:auto;padding:6px 16px;font-size:12px;" onclick="reloadCurrentTab()">🔄 Reload</button></div>';
+  return '<div style="margin-top:10px;"><button class="btn btn-sec" style="width:auto;padding:6px 16px;font-size:16px;" onclick="reloadCurrentTab()" title="Reload">🔄</button></div>';
 }
 function reloadCurrentTab() {
   const tabPhotosOpen = document.getElementById('tabPhotos').style.display !== 'none';
