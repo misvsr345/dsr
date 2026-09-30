@@ -199,6 +199,7 @@
     <button id="tabBtnOverview" class="active" onclick="showTab('Overview')">📊 Overview</button>
     <button id="tabBtnSold" onclick="showTab('Sold')">📦 Sold Data</button>
     <button id="tabBtnReceiving" onclick="showTab('Receiving')">📥 Receiving</button>
+    <button id="tabBtnRdr" onclick="showTab('Rdr')">↩️ Return/Damage/Repair</button>
   </div>
 
   <div id="tabPhotos" style="display:none;">
@@ -330,6 +331,23 @@
     <div id="receivingSummary" class="note"></div>
     <div id="receivingBody" class="ov-table-wrap"></div>
   </div><!-- /#tabReceiving -->
+
+  <!-- v-add (BRO's Return/Damage/Repair feature — "stock phto lo kuda option ivu": a read-only,
+       no-login viewer tab for the DSR section's Return/Damage/Repair entries, parallel to the
+       Receiving tab above. Unlike Receiving (which reads the offline STOCK/SOLD snapshots), this data
+       lives in DSRBackend.gs's "Return Damage Repair" sheet, so it's fetched live via the same
+       ledgerData action the Ledger already uses (uptoDate = today gets the full list) and cached the
+       same way (LEDGER_CACHE). -->
+  <div id="tabRdr" style="display:none;">
+    <div class="card">
+      <div class="filters">
+        <div><label>Counter</label><select id="rdrCounter" onchange="loadRdrData()"><option value="">All</option></select></div>
+        <div class="full"><label>Search</label><input type="text" id="rdrQ" placeholder="Tag No or Product name..." autocomplete="off" oninput="loadRdrData()" onkeydown="if(event.key==='Enter')loadRdrData()"></div>
+      </div>
+    </div>
+    <div id="rdrSummary" class="note"></div>
+    <div id="rdrBody" class="ov-table-wrap"></div>
+  </div><!-- /#tabRdr -->
 </div>
 
 <footer class="brand-footer">
@@ -381,6 +399,9 @@ document.getElementById('storeAddr').innerHTML = STORE_ADDRESS_LINES.join('<br>'
 
 function escHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escJs(s) {
+  return String(s == null ? '' : s).replace(/[\\'"\n\r]/g, c => ({'\\':'\\\\',"'":"\\'",'"':'\\"','\n':'\\n','\r':'\\r'}[c]));
 }
 function fmtDMY(s) {
   if (!s) return '—';
@@ -567,6 +588,8 @@ function reloadCurrentTab() {
     }
   } else if (document.getElementById('tabReceiving').style.display !== 'none') {
     document.getElementById('receivingBody').innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
+  } else if (document.getElementById('tabRdr').style.display !== 'none') {
+    document.getElementById('rdrBody').innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
   } else {
     // Sold Data tab
     document.getElementById('soldBody').innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
@@ -592,6 +615,7 @@ async function refreshOverviewSnapshots() {
     }
     if (document.getElementById('tabSold').style.display !== 'none') loadSoldData();
     if (document.getElementById('tabReceiving').style.display !== 'none') loadReceivingData();
+    if (document.getElementById('tabRdr').style.display !== 'none') loadRdrData();
   } catch (e) { /* offline or backend error — whatever was cached earlier (if any) stays as-is */ }
 }
 
@@ -1078,7 +1102,7 @@ function infoHtml(r) {
 // above: doesn't touch ALL_ITEMS or any existing function.
 // ============================================================
 function showTab(name) {
-  ['Photos', 'Overview', 'Sold', 'Receiving'].forEach(t => {
+  ['Photos', 'Overview', 'Sold', 'Receiving', 'Rdr'].forEach(t => {
     document.getElementById('tab' + t).style.display = (t === name) ? '' : 'none';
     document.getElementById('tabBtn' + t).classList.toggle('active', t === name);
   });
@@ -1091,6 +1115,7 @@ function showTab(name) {
   }
   if (name === 'Sold') loadSoldData();
   if (name === 'Receiving') loadReceivingData();
+  if (name === 'Rdr') loadRdrData();
 }
 
 // ---- Overview: counter tiles (stock-in-hand PCS only) -> product/design-wise count ----
@@ -1219,18 +1244,21 @@ function ovLoadDetail() {
 // minus avali... opening stock ninnati closing" — i.e. for any date D:
 //   Closing(D) = OpeningBaseline + Receiving(<=D) - Sale(<=D) - OutletIssue(<=D) - Return/Repair(<=D)
 //   Opening(D) = Closing(D-1)            [same formula evaluated up to D-1]
-// Return/Repair/Transfer isn't tracked anywhere yet (BRO: "dinni inka update cheyaledu, prastutaniki
-// 0ga count chei") so it's hardcoded to 0 until that feature exists. The single-day Sold/Outlet Issue
-// columns shown in the table are that day's rows only (date === D exactly) — Closing minus Opening
-// still equals Receiving(D) - Sold(D) - OutletIssue(D), it's just that Receiving(D) itself isn't
-// shown as its own column, matching BRO's requested column list exactly.
+// v-add (BRO's Return/Damage/Repair feature): the "Return" column now shows the real combined count
+// of Return+Damage+Repair for that day (Return/Damage/Repair form in the DSR section — see
+// DSRBackend.gs's "Return Damage Repair" sheet, surfaced here via ledgerData's "rdr" array), clickable
+// for a Tag No / Reason / Employee breakdown. The single-day Sold/Outlet Issue columns shown in the
+// table are that day's rows only (date === D exactly) — Closing minus Opening still equals
+// Receiving(D) - Sold(D) - OutletIssue(D) - Return/Damage/Repair(D), it's just that Receiving(D)
+// itself isn't shown as its own column, matching BRO's requested column list exactly.
 //
-// Sale/Outlet-Issue rows come from DSRBackend.gs's new "ledgerData" action (Main file + Archive for
-// Sale, the "Outlet Issue" tab for Outlet Issue) — those rows carry no Counter, so each one is
-// attributed to a counter by looking its Tag No up in the SAME Stock/Sold snapshots already cached
-// for the rest of this page (BRO: "tag no stock level file lo undi. aa tag no batti search chesi
-// ivu"). A tag not found there is skipped entirely (BRO: "no tag item ni leave chei. stock level file
-// lo unna stock matrame count ravali") — same rule as No-Tag items.
+// Sale/Outlet-Issue/RDR rows come from DSRBackend.gs's "ledgerData" action (Main file + Archive for
+// Sale, the "Outlet Issue" tab for Outlet Issue, the "Return Damage Repair" sheet for Return/Damage/
+// Repair) — those rows carry no Counter, so each one is attributed to a counter by looking its Tag No
+// up in the SAME Stock/Sold snapshots already cached for the rest of this page (BRO: "tag no stock
+// level file lo undi. aa tag no batti search chesi ivu"). A tag not found there is skipped entirely
+// (BRO: "no tag item ni leave chei. stock level file lo unna stock matrame count ravali") — same rule
+// as No-Tag items.
 //
 // Not offline-cached like Overview/Sold Data above (needs a live call to the separate DSR backend);
 // results for a given date are kept in an in-memory cache for this app session only, so re-picking a
@@ -1251,14 +1279,30 @@ function prevDateStr_(d) {
   const p = n => String(n).padStart(2, '0');
   return dt.getFullYear() + '-' + p(dt.getMonth() + 1) + '-' + p(dt.getDate());
 }
-const LEDGER_CACHE = {}; // { [uptoDate]: {sales:[...], outletIssues:[...]} } — this session only.
+const LEDGER_CACHE = {}; // { [uptoDate]: {sales:[...], outletIssues:[...], rdr:[...]} } — this session only.
+const LEDGER_RDR_ROWS = {}; // { [date]: rdr[] } — v-add (Return/Damage/Repair) — for ovShowRdrDetail's popup
 async function fetchLedgerUpto_(uptoDate) {
   if (LEDGER_CACHE[uptoDate]) return LEDGER_CACHE[uptoDate];
   const res = await dsrApi({ action: 'ledgerData', uptoDate });
   if (!res || !res.ok) throw new Error((res && res.message) || 'Could not load DSR data.');
-  const data = { sales: res.sales || [], outletIssues: res.outletIssues || [] };
+  const data = { sales: res.sales || [], outletIssues: res.outletIssues || [], rdr: res.rdr || [] };
   LEDGER_CACHE[uptoDate] = data;
   return data;
+}
+// v-add (BRO's Return/Damage/Repair feature — "stock phto lo kuda option ivu") — a tiny reusable popup,
+// same dark-overlay look as the photo viewer (openViewer above) but a plain white info card instead.
+function ovSimpleModal(innerHtml) {
+  const old = document.getElementById('ovSimpleModal'); if (old) old.remove();
+  const div = document.createElement('div');
+  div.id = 'ovSimpleModal';
+  div.className = 'overlay';
+  div.innerHTML = `<div style="background:#fff;border-radius:14px;max-width:92vw;width:420px;max-height:82vh;overflow-y:auto;padding:16px;position:relative;">
+      <button style="float:right;background:var(--bg);color:var(--text);border:1.5px solid var(--gold);width:30px;height:30px;border-radius:50%;font-size:15px;cursor:pointer;" onclick="document.getElementById('ovSimpleModal').remove()">✕</button>
+      <div style="clear:both;"></div>
+      ${innerHtml}
+    </div>`;
+  document.body.appendChild(div);
+  div.addEventListener('click', e => { if (e.target === div) div.remove(); });
 }
 function ovOpenLedgerFromTitle() {
   if (!OV.curCounter) return;
@@ -1315,10 +1359,13 @@ async function ovLoadLedger() {
   // v-fix (BRO: "mangalasutra -2 vachindi deniki" — a product going negative meant stock was being
   // subtracted for a Sale/Outlet Issue with nothing ever added back for it. Stock Level's own
   // entryType isn't just "Receiving Stock" — a "Return" entry (an item physically coming back into
-  // this counter's stock, separate from the DSR-side return/repair BRO said to keep at 0 for now) is
-  // just as much an inbound addition, so it has to count here too, not just Receiving Stock).
+  // this counter's stock) is just as much an inbound addition, so it has to count here too.
+  // v-add (BRO's Return/Damage/Repair feature): "Damage Receive" is the entryType used when a
+  // Damage/Repair item is marked Received Back (from the DSR section's Return/Damage/Repair form) —
+  // also inbound, kept as its own entryType so it's never confused with a normal Stock Entry
+  // "Receiving Stock" row, or with a plain Stock Level "Return" entry.
   function receivingUpto(key, upto) {
-    return entryRows.filter(r => (r.entryType === 'Receiving Stock' || r.entryType === 'Return') && r.entryDate && r.entryDate <= upto && groupKey_(r.productName, r.design) === key)
+    return entryRows.filter(r => (r.entryType === 'Receiving Stock' || r.entryType === 'Return' || r.entryType === 'Damage Receive') && r.entryDate && r.entryDate <= upto && groupKey_(r.productName, r.design) === key)
       .reduce((s, r) => s + rowQty_(r), 0);
   }
   // Sale/Outlet-Issue rows carry no Counter of their own — resolved here via Tag No against the same
@@ -1338,6 +1385,12 @@ async function ovLoadLedger() {
   const saleOn = (key, d) => sumMatching(ledgerData.sales, key, s => s.date === d);
   const outletUpto = (key, upto) => sumMatching(ledgerData.outletIssues, key, o => o.date <= upto);
   const outletOn = (key, d) => sumMatching(ledgerData.outletIssues, key, o => o.date === d);
+  // v-add (BRO's Return/Damage/Repair feature) — the Ledger's "Return" column, combining all 3
+  // reasons (Return/Damage/Repair) into one number for that day, clickable for a per-item detail popup.
+  const rdrUpto = (key, upto) => sumMatching(ledgerData.rdr, key, o => o.date <= upto);
+  const rdrRowsOn = (key, d) => (ledgerData.rdr || []).filter(o => o.date === d && resolveKey_(o) === key);
+  const rdrOn = (key, d) => rdrRowsOn(key, d).length;
+  LEDGER_RDR_ROWS[dateVal] = ledgerData.rdr || [];
   // v-add (BRO: "opening closing sold return ila anni icharu, danto patu receiving kuda ivu" — the
   // ledger table itself should also show, per row, how many pieces were RECEIVED that exact day
   // (Entry Type = "Receiving Stock" only — Return already has its own column and is excluded here).
@@ -1345,12 +1398,12 @@ async function ovLoadLedger() {
 
   const list = Object.keys(groups).map(key => {
     const base = baseline(key);
-    const closingToday = base + receivingUpto(key, dateVal) - saleUpto(key, dateVal) - outletUpto(key, dateVal);
-    const closingPrev = base + receivingUpto(key, prevDate) - saleUpto(key, prevDate) - outletUpto(key, prevDate);
+    const closingToday = base + receivingUpto(key, dateVal) - saleUpto(key, dateVal) - outletUpto(key, dateVal) - rdrUpto(key, dateVal);
+    const closingPrev = base + receivingUpto(key, prevDate) - saleUpto(key, prevDate) - outletUpto(key, prevDate) - rdrUpto(key, prevDate);
     return {
-      product: groups[key].product, design: groups[key].design,
+      product: groups[key].product, design: groups[key].design, key: key,
       opening: closingPrev, closing: closingToday, receiving: receivingOn(key, dateVal),
-      sold: saleOn(key, dateVal), ret: 0, outlet: outletOn(key, dateVal)
+      sold: saleOn(key, dateVal), ret: rdrOn(key, dateVal), outlet: outletOn(key, dateVal)
     };
   }).sort((a, b) => a.product.localeCompare(b.product, undefined, { numeric: true, sensitivity: 'base' }) || a.design.localeCompare(b.design, undefined, { numeric: true, sensitivity: 'base' }));
 
@@ -1366,11 +1419,30 @@ async function ovLoadLedger() {
   }, { opening: 0, closing: 0, receiving: 0, sold: 0, ret: 0, outlet: 0 });
   let html = `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:center;">Opening</th><th style="text-align:center;">Closing</th><th style="text-align:center;">Receiving</th><th style="text-align:center;">Sold</th><th style="text-align:center;">Return</th><th style="text-align:center;">Outlet Issue</th></tr></thead><tbody>`;
   list.forEach(r => {
-    html += `<tr><td>${escHtml(r.product)}</td>${byDesign ? `<td>${escHtml(r.design || '—')}</td>` : ''}<td style="text-align:center;">${r.opening}</td><td style="text-align:center;">${r.closing}</td><td style="text-align:center;">${r.receiving}</td><td style="text-align:center;">${r.sold}</td><td style="text-align:center;">${r.ret}</td><td style="text-align:center;">${r.outlet}</td></tr>`;
+    const retCell = r.ret > 0 ? `<a href="#" onclick="ovShowRdrDetail('${escJs(r.key)}','${dateVal}','${escJs(r.product)}',${byDesign});return false;" style="color:#B03A2E;font-weight:800;text-decoration:underline;">${r.ret}</a>` : r.ret;
+    html += `<tr><td>${escHtml(r.product)}</td>${byDesign ? `<td>${escHtml(r.design || '—')}</td>` : ''}<td style="text-align:center;">${r.opening}</td><td style="text-align:center;">${r.closing}</td><td style="text-align:center;">${r.receiving}</td><td style="text-align:center;">${r.sold}</td><td style="text-align:center;">${retCell}</td><td style="text-align:center;">${r.outlet}</td></tr>`;
   });
   html += `<tr style="font-weight:800;border-top:2px solid var(--gold);"><td>Total</td>${byDesign ? '<td></td>' : ''}<td style="text-align:center;">${tot.opening}</td><td style="text-align:center;">${tot.closing}</td><td style="text-align:center;">${tot.receiving}</td><td style="text-align:center;">${tot.sold}</td><td style="text-align:center;">${tot.ret}</td><td style="text-align:center;">${tot.outlet}</td></tr>`;
   html += '</tbody></table></div>';
   body.innerHTML = html;
+}
+// v-add (BRO's Return/Damage/Repair feature) — clicking the Ledger's Return count opens this detail
+// popup listing the individual Tag No / Reason / Employee behind that day's combined number.
+function ovShowRdrDetail(key, date, productLabel, byDesign) {
+  const rows = (LEDGER_RDR_ROWS[date] || []).filter(o => {
+    const rowKey = byDesign ? (o.productName + '|' + String(o.design || '').trim()) : o.productName;
+    return rowKey === key;
+  });
+  let inner = `<div style="font-weight:800;font-size:15px;margin-bottom:4px;">↩️ Return / Damage / Repair — ${escHtml(productLabel)}</div>
+    <div class="note" style="text-align:left;padding:0 0 10px;">${fmtDMY(date)} · ${rows.length} item${rows.length === 1 ? '' : 's'}</div>`;
+  if (!rows.length) {
+    inner += '<div class="empty" style="padding:20px 0;">No detail found.</div>';
+  } else {
+    inner += `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Tag No</th><th>Reason</th><th>Employee</th></tr></thead><tbody>` +
+      rows.map(r => `<tr><td><b>${escHtml(r.tagNo || '—')}</b></td><td>${escHtml(r.reason || '—')}</td><td>${escHtml(r.employee || '—')}</td></tr>`).join('') +
+      '</tbody></table></div>';
+  }
+  ovSimpleModal(inner);
 }
 
 // v-add (BRO: "stock phto file lo opening closing sold return ila anni icharu, danto patu receiving
@@ -1418,6 +1490,65 @@ function loadReceivingData() {
   let html = '<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Date</th><th>Tag No</th><th>Product</th><th>Design</th><th>Counter</th><th style="text-align:center;">Qty</th><th style="text-align:center;">Weight</th></tr></thead><tbody>';
   rows.forEach(r => {
     html += `<tr><td>${escHtml(r.entryDate || '—')}</td><td>${escHtml(r.tagNo || '—')}</td><td>${escHtml(r.productName || '')}</td><td>${escHtml(r.design || '—')}</td><td>${escHtml(rowCounter_(r))}</td><td style="text-align:center;">${rowQty_(r)}</td><td style="text-align:center;">${r.weight || '—'}</td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  body.innerHTML = html;
+}
+
+// v-add (BRO's Return/Damage/Repair feature — "stock phto lo kuda option ivu") — a read-only viewer
+// tab, parallel to Receiving above, for the DSR section's Return/Damage/Repair entries. This data
+// lives in DSRBackend.gs's "Return Damage Repair" sheet, not the Stock Level snapshots, so it's
+// fetched live via the same ledgerData action the Ledger view uses (uptoDate = today returns the
+// full list) — cached the same way (LEDGER_CACHE), so re-opening this tab doesn't re-fetch.
+function populateRdrCounterOptions_() {
+  const sel = document.getElementById('rdrCounter');
+  if (!sel || sel.dataset.filled) return;
+  sel.innerHTML = '<option value="">All Counters</option>' + KNOWN_COUNTERS.map(c => `<option>${escHtml(c)}</option>`).join('');
+  sel.dataset.filled = '1';
+}
+async function loadRdrData() {
+  populateRdrCounterOptions_();
+  const body = document.getElementById('rdrBody');
+  const summary = document.getElementById('rdrSummary');
+  if (!STOCK_SNAPSHOT.length && !SOLD_SNAPSHOT.length) {
+    body.innerHTML = (navigator.onLine
+      ? '<div class="loading"><span class="spinner"></span>Loading...</div>'
+      : '<div class="empty">No offline data saved yet — connect once to load.</div>') + reloadBtnHtml();
+    summary.textContent = '';
+    return;
+  }
+  body.innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
+  let ledgerData;
+  try {
+    ledgerData = await fetchLedgerUpto_(todayStr_ph());
+  } catch (e) {
+    body.innerHTML = `<div class="empty">${escHtml(e.message || 'Could not load data — check the connection.')}</div>` + reloadBtnHtml();
+    summary.textContent = '';
+    return;
+  }
+  if (document.getElementById('tabRdr').style.display === 'none') return;
+
+  const tagIdx = buildTagIndex_();
+  const counter = document.getElementById('rdrCounter').value;
+  const q = document.getElementById('rdrQ').value.trim().toUpperCase();
+  const needleTag = normTag(q);
+  let rows = (ledgerData.rdr || []).map(r => {
+    const hit = tagIdx[normTag(r.tagNo)];
+    return Object.assign({}, r, { counter: hit ? hit.counter : '' });
+  });
+  if (counter) rows = rows.filter(r => r.counter === counter);
+  if (q) rows = rows.filter(r => (needleTag && normTag(r.tagNo).indexOf(needleTag) > -1) || String(r.productName || '').toUpperCase().indexOf(q) > -1);
+  rows = rows.slice().sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+  if (!rows.length) {
+    summary.textContent = '';
+    body.innerHTML = '<div class="empty">No Return / Damage / Repair entries found.</div>';
+    return;
+  }
+  summary.textContent = rows.length + ' entr' + (rows.length === 1 ? 'y' : 'ies');
+  let html = '<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Date</th><th>Tag No</th><th>Product</th><th>Design</th><th>Reason</th><th>Counter</th></tr></thead><tbody>';
+  rows.forEach(r => {
+    html += `<tr><td>${escHtml(r.date || '—')}</td><td>${escHtml(r.tagNo || '—')}</td><td>${escHtml(r.productName || '')}</td><td>${escHtml(r.design || '—')}</td><td>${escHtml(r.reason || '—')}</td><td>${escHtml(r.counter || '—')}</td></tr>`;
   });
   html += '</tbody></table></div>';
   body.innerHTML = html;
