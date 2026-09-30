@@ -198,6 +198,7 @@
     <button id="tabBtnPhotos" onclick="showTab('Photos')">🖼️ Photos</button>
     <button id="tabBtnOverview" class="active" onclick="showTab('Overview')">📊 Overview</button>
     <button id="tabBtnSold" onclick="showTab('Sold')">📦 Sold Data</button>
+    <button id="tabBtnReceiving" onclick="showTab('Receiving')">📥 Receiving</button>
   </div>
 
   <div id="tabPhotos" style="display:none;">
@@ -309,6 +310,26 @@
     <div id="soldSummary" class="note"></div>
     <div id="soldBody" class="ov-table-wrap"></div>
   </div><!-- /#tabSold -->
+
+  <!-- v-add (BRO: "stock phto file lo opening closing sold return ila anni icharu, danto patu
+       receiving kuda ivu. receiving ante stock entry form lo receiving dantlo enter chesina vi
+       kavali. separata ga receiving ki oka tab pettu. dantlo search tag no ani kuda option ivu" —
+       a standalone tab, separate from the Ledger's own Receiving column, listing every individual
+       Stock Entry made with Entry Type = "Receiving Stock" (Opening Stock and Return entries are
+       NOT receiving, so they're excluded here — this is only what was entered under Receiving in the
+       Stock Entry form). Reads the same offline-cached STOCK_SNAPSHOT + SOLD_SNAPSHOT this whole page
+       already uses (a received item later sold still shows here, since Sold rows keep their original
+       entryType too) — no new backend call, works offline like Overview/Sold Data. -->
+  <div id="tabReceiving" style="display:none;">
+    <div class="card">
+      <div class="filters">
+        <div><label>Counter</label><select id="recvCounter" onchange="loadReceivingData()"><option value="">All</option></select></div>
+        <div class="full"><label>Search</label><input type="text" id="recvQ" placeholder="Tag No or Product name..." autocomplete="off" oninput="loadReceivingData()" onkeydown="if(event.key==='Enter')loadReceivingData()"></div>
+      </div>
+    </div>
+    <div id="receivingSummary" class="note"></div>
+    <div id="receivingBody" class="ov-table-wrap"></div>
+  </div><!-- /#tabReceiving -->
 </div>
 
 <footer class="brand-footer">
@@ -544,6 +565,8 @@ function reloadCurrentTab() {
     } else {
       document.getElementById('ovTiles').innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
     }
+  } else if (document.getElementById('tabReceiving').style.display !== 'none') {
+    document.getElementById('receivingBody').innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
   } else {
     // Sold Data tab
     document.getElementById('soldBody').innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
@@ -568,6 +591,7 @@ async function refreshOverviewSnapshots() {
       else { ovLoadTiles(); }
     }
     if (document.getElementById('tabSold').style.display !== 'none') loadSoldData();
+    if (document.getElementById('tabReceiving').style.display !== 'none') loadReceivingData();
   } catch (e) { /* offline or backend error — whatever was cached earlier (if any) stays as-is */ }
 }
 
@@ -1054,7 +1078,7 @@ function infoHtml(r) {
 // above: doesn't touch ALL_ITEMS or any existing function.
 // ============================================================
 function showTab(name) {
-  ['Photos', 'Overview', 'Sold'].forEach(t => {
+  ['Photos', 'Overview', 'Sold', 'Receiving'].forEach(t => {
     document.getElementById('tab' + t).style.display = (t === name) ? '' : 'none';
     document.getElementById('tabBtn' + t).classList.toggle('active', t === name);
   });
@@ -1066,6 +1090,7 @@ function showTab(name) {
     else { ovLoadTiles(); }
   }
   if (name === 'Sold') loadSoldData();
+  if (name === 'Receiving') loadReceivingData();
 }
 
 // ---- Overview: counter tiles (stock-in-hand PCS only) -> product/design-wise count ----
@@ -1313,6 +1338,10 @@ async function ovLoadLedger() {
   const saleOn = (key, d) => sumMatching(ledgerData.sales, key, s => s.date === d);
   const outletUpto = (key, upto) => sumMatching(ledgerData.outletIssues, key, o => o.date <= upto);
   const outletOn = (key, d) => sumMatching(ledgerData.outletIssues, key, o => o.date === d);
+  // v-add (BRO: "opening closing sold return ila anni icharu, danto patu receiving kuda ivu" — the
+  // ledger table itself should also show, per row, how many pieces were RECEIVED that exact day
+  // (Entry Type = "Receiving Stock" only — Return already has its own column and is excluded here).
+  const receivingOn = (key, d) => entryRows.filter(r => r.entryType === 'Receiving Stock' && r.entryDate === d && groupKey_(r.productName, r.design) === key).reduce((s, r) => s + rowQty_(r), 0);
 
   const list = Object.keys(groups).map(key => {
     const base = baseline(key);
@@ -1320,7 +1349,7 @@ async function ovLoadLedger() {
     const closingPrev = base + receivingUpto(key, prevDate) - saleUpto(key, prevDate) - outletUpto(key, prevDate);
     return {
       product: groups[key].product, design: groups[key].design,
-      opening: closingPrev, closing: closingToday,
+      opening: closingPrev, closing: closingToday, receiving: receivingOn(key, dateVal),
       sold: saleOn(key, dateVal), ret: 0, outlet: outletOn(key, dateVal)
     };
   }).sort((a, b) => a.product.localeCompare(b.product, undefined, { numeric: true, sensitivity: 'base' }) || a.design.localeCompare(b.design, undefined, { numeric: true, sensitivity: 'base' }));
@@ -1332,14 +1361,64 @@ async function ovLoadLedger() {
   // data cell alike, is centered, and no heading wraps to a 2nd line.
   // BRO: "all pages lo kinda totals ravali" — a totals row summing every column, at the bottom of the table.
   const tot = list.reduce((s, r) => {
-    s.opening += r.opening; s.closing += r.closing; s.sold += r.sold; s.ret += r.ret; s.outlet += r.outlet;
+    s.opening += r.opening; s.closing += r.closing; s.receiving += r.receiving; s.sold += r.sold; s.ret += r.ret; s.outlet += r.outlet;
     return s;
-  }, { opening: 0, closing: 0, sold: 0, ret: 0, outlet: 0 });
-  let html = `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:center;">Opening</th><th style="text-align:center;">Closing</th><th style="text-align:center;">Sold</th><th style="text-align:center;">Return</th><th style="text-align:center;">Outlet Issue</th></tr></thead><tbody>`;
+  }, { opening: 0, closing: 0, receiving: 0, sold: 0, ret: 0, outlet: 0 });
+  let html = `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:center;">Opening</th><th style="text-align:center;">Closing</th><th style="text-align:center;">Receiving</th><th style="text-align:center;">Sold</th><th style="text-align:center;">Return</th><th style="text-align:center;">Outlet Issue</th></tr></thead><tbody>`;
   list.forEach(r => {
-    html += `<tr><td>${escHtml(r.product)}</td>${byDesign ? `<td>${escHtml(r.design || '—')}</td>` : ''}<td style="text-align:center;">${r.opening}</td><td style="text-align:center;">${r.closing}</td><td style="text-align:center;">${r.sold}</td><td style="text-align:center;">${r.ret}</td><td style="text-align:center;">${r.outlet}</td></tr>`;
+    html += `<tr><td>${escHtml(r.product)}</td>${byDesign ? `<td>${escHtml(r.design || '—')}</td>` : ''}<td style="text-align:center;">${r.opening}</td><td style="text-align:center;">${r.closing}</td><td style="text-align:center;">${r.receiving}</td><td style="text-align:center;">${r.sold}</td><td style="text-align:center;">${r.ret}</td><td style="text-align:center;">${r.outlet}</td></tr>`;
   });
-  html += `<tr style="font-weight:800;border-top:2px solid var(--gold);"><td>Total</td>${byDesign ? '<td></td>' : ''}<td style="text-align:center;">${tot.opening}</td><td style="text-align:center;">${tot.closing}</td><td style="text-align:center;">${tot.sold}</td><td style="text-align:center;">${tot.ret}</td><td style="text-align:center;">${tot.outlet}</td></tr>`;
+  html += `<tr style="font-weight:800;border-top:2px solid var(--gold);"><td>Total</td>${byDesign ? '<td></td>' : ''}<td style="text-align:center;">${tot.opening}</td><td style="text-align:center;">${tot.closing}</td><td style="text-align:center;">${tot.receiving}</td><td style="text-align:center;">${tot.sold}</td><td style="text-align:center;">${tot.ret}</td><td style="text-align:center;">${tot.outlet}</td></tr>`;
+  html += '</tbody></table></div>';
+  body.innerHTML = html;
+}
+
+// v-add (BRO: "stock phto file lo opening closing sold return ila anni icharu, danto patu receiving
+// kuda ivu. receiving ante stock entry form lo receiving dantlo enter chesina vi kavali. separata ga
+// receiving ki oka tab pettu. dantlo search tag no ani kuda option ivu" — a standalone Receiving tab,
+// separate from the Ledger's own Receiving-Upto total above). Only entryType === 'Receiving Stock' —
+// Opening Stock (the very first stock-taking) and Return (a repaired/returned item coming back) are
+// deliberately NOT "Receiving" per BRO's own definition ("stock entry form lo receiving dantlo enter
+// chesina vi" — specifically the Receiving option in that form). Reads the same offline
+// STOCK_SNAPSHOT + SOLD_SNAPSHOT arrays as everything else on this page — a received item that has
+// since been sold still shows here, since a Sold row keeps its original entryType/entryDate too.
+function populateReceivingCounterOptions_() {
+  const sel = document.getElementById('recvCounter');
+  if (!sel || sel.dataset.filled) return;
+  sel.innerHTML = '<option value="">All Counters</option>' + KNOWN_COUNTERS.map(c => `<option>${escHtml(c)}</option>`).join('');
+  sel.dataset.filled = '1';
+}
+function loadReceivingData() {
+  populateReceivingCounterOptions_();
+  const body = document.getElementById('receivingBody');
+  const summary = document.getElementById('receivingSummary');
+  if (!STOCK_SNAPSHOT.length && !SOLD_SNAPSHOT.length) {
+    body.innerHTML = (navigator.onLine
+      ? '<div class="loading"><span class="spinner"></span>Loading...</div>'
+      : '<div class="empty">No offline data saved yet — connect once to load.</div>') + reloadBtnHtml();
+    summary.textContent = '';
+    return;
+  }
+  const counter = document.getElementById('recvCounter').value;
+  const q = document.getElementById('recvQ').value.trim().toUpperCase();
+  const needleTag = normTag(q);
+  let rows = allEntryRows_().filter(r => r.entryType === 'Receiving Stock');
+  if (counter) rows = rows.filter(r => rowCounter_(r) === counter);
+  if (q) rows = rows.filter(r => (needleTag && normTag(r.tagNo).indexOf(needleTag) > -1) || String(r.productName || '').toUpperCase().indexOf(q) > -1);
+  // Most recently received first.
+  rows = rows.slice().sort((a, b) => new Date(b.addedAt || b.entryDate || 0) - new Date(a.addedAt || a.entryDate || 0));
+
+  if (!rows.length) {
+    summary.textContent = '';
+    body.innerHTML = '<div class="empty">No receiving entries found.</div>';
+    return;
+  }
+  const totalPcs = rows.reduce((s, r) => s + rowQty_(r), 0);
+  summary.textContent = rows.length + ' entr' + (rows.length === 1 ? 'y' : 'ies') + ' — ' + totalPcs + ' pcs';
+  let html = '<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Date</th><th>Tag No</th><th>Product</th><th>Design</th><th>Counter</th><th style="text-align:center;">Qty</th><th style="text-align:center;">Weight</th></tr></thead><tbody>';
+  rows.forEach(r => {
+    html += `<tr><td>${escHtml(r.entryDate || '—')}</td><td>${escHtml(r.tagNo || '—')}</td><td>${escHtml(r.productName || '')}</td><td>${escHtml(r.design || '—')}</td><td>${escHtml(rowCounter_(r))}</td><td style="text-align:center;">${rowQty_(r)}</td><td style="text-align:center;">${r.weight || '—'}</td></tr>`;
+  });
   html += '</tbody></table></div>';
   body.innerHTML = html;
 }
