@@ -1438,9 +1438,24 @@ async function ovLoadLedger() {
   // (Entry Type = "Receiving Stock" only — Return already has its own column and is excluded here).
   const receivingOn = (key, d) => entryRows.filter(r => r.entryType === 'Receiving Stock' && r.entryDate === d && groupKey_(r.productName, r.design) === key).reduce((s, r) => s + rowQty_(r), 0);
 
+  // v-fix (BRO: "tag no ki lookup chesi count cheste saripotundi kada" — for TODAY, closing doesn't
+  // need to be rebuilt from the whole transaction history at all: the live Stock snapshot already IS
+  // today's true physical count, tag by tag, same as the Overview "Current Stock" card. Historical
+  // DSR data (old duplicate rows, sales recorded before Stock Level even existed for a tag that's
+  // since been reused, etc.) can never perfectly reconstruct a running total back to day one — but it
+  // doesn't need to for TODAY, since we can just count what's physically in Stock right now. The
+  // additive formula is kept ONLY for a PAST date (no live snapshot exists for a day that's already
+  // gone), which is also the only place old-data imperfections can still show up.
+  const isToday = dateVal === todayStr_ph();
+  function liveCount(key) {
+    return STOCK_SNAPSHOT.filter(r => rowCounter_(r) === counter && groupKey_(r.productName, r.design) === key)
+      .reduce((s, r) => s + rowQty_(r), 0);
+  }
+
   const list = Object.keys(groups).map(key => {
     const base = baseline(key);
-    const closingToday = base + receivingUpto(key, dateVal) - saleUpto(key, dateVal) - outletUpto(key, dateVal) - rdrUpto(key, dateVal);
+    const closingToday = isToday ? liveCount(key)
+      : (base + receivingUpto(key, dateVal) - saleUpto(key, dateVal) - outletUpto(key, dateVal) - rdrUpto(key, dateVal));
     const closingPrev = base + receivingUpto(key, prevDate) - saleUpto(key, prevDate) - outletUpto(key, prevDate) - rdrUpto(key, prevDate);
     return {
       product: groups[key].product, design: groups[key].design, key: key,
