@@ -14,6 +14,11 @@
     --purple:#0B2E6B; --purple-mid:#1E4FA0; --gold:#D4AF37;
     --bg:#FAF6EF; --card:#ffffff; --border:#E7DDC9; --text:#2A1712; --dmuted:#8A7B6C;
     --red:#C0392B; --green:#2E8B57;
+    /* v-add (BRO: "page ki page ki color change chei... koddiga different ga undali" — each tab gets
+       its own light accent color for its heading + date buttons, instead of every tab looking
+       identical. Overview stays the plain purple/gold brand look (it's the home tab); the other 4 each
+       get their own softer tint so the app doesn't feel "oke color" everywhere. */
+    --acc-sold:#C9A227; --acc-receiving:var(--green); --acc-rdr:var(--red); --acc-photos:#6B4FA0;
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:'Spectral',serif;}
@@ -77,6 +82,9 @@
   .btn{width:100%;padding:12px;border:none;border-radius:10px;background:var(--purple);color:#fff;font-weight:800;font-size:14.5px;cursor:pointer;letter-spacing:.2px;}
   .btn:active{background:var(--purple-mid);}
   .btn-sec{background:#fff;color:var(--purple);border:1.5px solid var(--purple);}
+  /* v-fix (BRO: "aa today yetsdrday tabs inta bold ga vadu" — the Today/Yesterday/Custom Date buttons
+     were as bold as a normal .btn (800); lighter now so they read as a quiet filter, not a loud action. */
+  .btn-datemode{font-weight:600;}
   .note{font-size:12px;color:var(--dmuted);text-align:center;padding:6px 0;}
   .empty{text-align:center;padding:40px 16px;color:var(--dmuted);}
   .spinner{display:inline-block;width:16px;height:16px;border:2.5px solid var(--border);border-top-color:var(--purple);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;}
@@ -212,7 +220,7 @@
   </div>
 
   <div id="tabPhotos" style="display:none;">
-  <div class="tab-heading">🖼️ Stock Photos</div>
+  <div class="tab-heading" style="border-bottom-color:var(--acc-photos);color:var(--acc-photos);">🖼️ Stock Photos</div>
   <div class="card">
     <div class="filters">
       <div><label>Show</label>
@@ -306,13 +314,13 @@
        is reachable by anyone with the link — same reasoning as removing them from the photo lightbox
        earlier. -->
   <div id="tabSold" style="display:none;">
-    <div class="tab-heading">📦 Sold Data (DSR Entry Data)</div>
+    <div class="tab-heading" style="border-bottom-color:var(--acc-sold);color:var(--acc-sold);">📦 Sold Data (DSR Entry Data)</div>
     <div class="card">
       <div class="filters">
         <div class="full" style="display:flex;gap:8px;">
-          <button class="btn btn-sec" id="soldModeTodayBtn" style="width:auto;padding:9px 16px;" onclick="setSoldMode('today')">Today</button>
-          <button class="btn btn-sec" id="soldModeYesterdayBtn" style="width:auto;padding:9px 16px;" onclick="setSoldMode('yesterday')">Yesterday</button>
-          <button class="btn btn-sec" id="soldModeCustomBtn" style="width:auto;padding:9px 16px;" onclick="setSoldMode('custom')">Custom Date</button>
+          <button class="btn btn-sec btn-datemode" id="soldModeTodayBtn" style="width:auto;padding:9px 16px;" onclick="setSoldMode('today')">Today</button>
+          <button class="btn btn-sec btn-datemode" id="soldModeYesterdayBtn" style="width:auto;padding:9px 16px;" onclick="setSoldMode('yesterday')">Yesterday</button>
+          <button class="btn btn-sec btn-datemode" id="soldModeCustomBtn" style="width:auto;padding:9px 16px;" onclick="setSoldMode('custom')">Custom Date</button>
         </div>
       </div>
       <div class="filters" id="soldCustomBox" style="display:none;">
@@ -335,8 +343,22 @@
        already uses (a received item later sold still shows here, since Sold rows keep their original
        entryType too) — no new backend call, works offline like Overview/Sold Data. -->
   <div id="tabReceiving" style="display:none;">
-    <div class="tab-heading">📥 Stock Receiving Hub</div>
+    <div class="tab-heading" style="border-bottom-color:var(--acc-receiving);color:var(--acc-receiving);">📥 Stock Receiving Hub</div>
+    <!-- v-add (BRO: "sold tab lo unnatu today yesteday custome date anniti lo pettu" — the same
+         Today/Yesterday/Custom Date quick-filter the Sold tab already has, added here too, so Receiving
+         isn't stuck showing the entire history every time. -->
     <div class="card">
+      <div class="filters">
+        <div class="full" style="display:flex;gap:8px;">
+          <button class="btn btn-sec btn-datemode" id="recvModeTodayBtn" style="width:auto;padding:9px 16px;" onclick="setRecvMode('today')">Today</button>
+          <button class="btn btn-sec btn-datemode" id="recvModeYesterdayBtn" style="width:auto;padding:9px 16px;" onclick="setRecvMode('yesterday')">Yesterday</button>
+          <button class="btn btn-sec btn-datemode" id="recvModeCustomBtn" style="width:auto;padding:9px 16px;" onclick="setRecvMode('custom')">Custom Date</button>
+        </div>
+      </div>
+      <div class="filters" id="recvCustomBox" style="display:none;">
+        <div><label>Start Date</label><input type="date" id="recvStart" onchange="loadReceivingData()"></div>
+        <div><label>End Date</label><input type="date" id="recvEnd" onchange="loadReceivingData()"></div>
+      </div>
       <div class="filters">
         <div><label>Counter</label><select id="recvCounter" onchange="loadReceivingData()"><option value="">All</option></select></div>
         <div class="full"><label>Search</label><input type="text" id="recvQ" placeholder="Tag No or Product name..." autocomplete="off" oninput="loadReceivingData()" onkeydown="if(event.key==='Enter')loadReceivingData()"></div>
@@ -353,8 +375,21 @@
        ledgerData action the Ledger already uses (uptoDate = today gets the full list) and cached the
        same way (LEDGER_CACHE). -->
   <div id="tabRdr" style="display:none;">
-    <div class="tab-heading">↩️ Return / Damage / Repair</div>
+    <div class="tab-heading" style="border-bottom-color:var(--acc-rdr);color:var(--acc-rdr);">↩️ Return / Damage / Repair</div>
+    <!-- v-add (BRO: "sold tab lo unnatu today yesteday custome date anniti lo pettu" — same
+         Today/Yesterday/Custom Date quick-filter as Sold, added here too. -->
     <div class="card">
+      <div class="filters">
+        <div class="full" style="display:flex;gap:8px;">
+          <button class="btn btn-sec btn-datemode" id="rdrModeTodayBtn" style="width:auto;padding:9px 16px;" onclick="setRdrMode('today')">Today</button>
+          <button class="btn btn-sec btn-datemode" id="rdrModeYesterdayBtn" style="width:auto;padding:9px 16px;" onclick="setRdrMode('yesterday')">Yesterday</button>
+          <button class="btn btn-sec btn-datemode" id="rdrModeCustomBtn" style="width:auto;padding:9px 16px;" onclick="setRdrMode('custom')">Custom Date</button>
+        </div>
+      </div>
+      <div class="filters" id="rdrCustomBox" style="display:none;">
+        <div><label>Start Date</label><input type="date" id="rdrStart" onchange="loadRdrData()"></div>
+        <div><label>End Date</label><input type="date" id="rdrEnd" onchange="loadRdrData()"></div>
+      </div>
       <div class="filters">
         <div><label>Counter</label><select id="rdrCounter" onchange="loadRdrData()"><option value="">All</option></select></div>
         <div class="full"><label>Search</label><input type="text" id="rdrQ" placeholder="Tag No or Product name..." autocomplete="off" oninput="loadRdrData()" onkeydown="if(event.key==='Enter')loadRdrData()"></div>
@@ -1631,14 +1666,19 @@ function todayStr_ph() {
   const d = new Date(), p = n => String(n).padStart(2, '0');
   return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
 }
+// v-add (BRO's per-tab accent colors) — shared by setSoldMode/setRecvMode/setRdrMode below so the
+// Today/Yesterday/Custom Date buttons on each tab light up in THAT tab's own color, not always purple.
+function applyDateModeStyle_(mode, todayBtn, yestBtn, customBtn, customBoxId, color) {
+  [[todayBtn, 'today'], [yestBtn, 'yesterday'], [customBtn, 'custom']].forEach(([btn, m]) => {
+    btn.style.background = mode === m ? color : '#fff';
+    btn.style.color = mode === m ? '#fff' : color;
+    btn.style.borderColor = color;
+  });
+  document.getElementById(customBoxId).style.display = mode === 'custom' ? '' : 'none';
+}
 function setSoldMode(mode) {
   SOLD.mode = mode;
-  const todayBtn = document.getElementById('soldModeTodayBtn'), yestBtn = document.getElementById('soldModeYesterdayBtn'), customBtn = document.getElementById('soldModeCustomBtn');
-  [[todayBtn, 'today'], [yestBtn, 'yesterday'], [customBtn, 'custom']].forEach(([btn, m]) => {
-    btn.style.background = mode === m ? 'var(--purple)' : '#fff';
-    btn.style.color = mode === m ? '#fff' : 'var(--purple)';
-  });
-  document.getElementById('soldCustomBox').style.display = mode === 'custom' ? '' : 'none';
+  applyDateModeStyle_(mode, document.getElementById('soldModeTodayBtn'), document.getElementById('soldModeYesterdayBtn'), document.getElementById('soldModeCustomBtn'), 'soldCustomBox', 'var(--acc-sold)');
 }
 function loadSoldData() {
   const body = document.getElementById('soldBody'), summary = document.getElementById('soldSummary');
