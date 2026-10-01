@@ -796,6 +796,49 @@ async function initApp() {
   // instant the file opens (Photos tab used to be first); this renders its tiles right away from
   // whatever's cached, same as clicking the Overview button would.
   ovLoadTiles();
+
+  checkDuplicateAlerts();
+
+  // v-add (BRO: "ledge data... koddiga fast ga load avali" — warm the cache for today's Ledger right
+  // away, in the background, so by the time someone actually taps into a counter's Ledger it's already
+  // sitting in IndexedDB and opens instantly instead of waiting on a fresh server fetch.
+  fetchLedgerUpto_(todayStr_ph()).catch(() => {});
+}
+
+// v-add (BRO: "duplicate tag entry elert in dsr or other area, alert mail ravlia mis ki and portal lo
+// kuda pop ravali. stock phtos lo kuda ravali. tag no and emp name date tho ravali." — whenever a Tag
+// No gets entered twice (StockBackend.gs's syncDsr_ catches it at sync time), DSRBackend.gs now logs it
+// and emails MIS already; this just SHOWS the same alerts here too. Only alerts newer than the last one
+// already shown (remembered in IndexedDB) trigger the banner, so the same alert never pops up twice.
+let DUP_ALERTS_CACHE = [];
+async function checkDuplicateAlerts() {
+  try {
+    const lastSeen = (await idbGet('meta', 'dupAlertLastSeenTs')) || 0;
+    const res = await dsrApi({ action: 'duplicateAlerts', sinceTs: lastSeen, limit: 50 });
+    if (!res || !res.ok) return;
+    DUP_ALERTS_CACHE = res.alerts || [];
+    const banner = document.getElementById('dupAlertBanner');
+    if (!banner) return;
+    if (DUP_ALERTS_CACHE.length) {
+      banner.style.display = 'block';
+      banner.textContent = `⚠️ ${DUP_ALERTS_CACHE.length} Duplicate Tag No Entr${DUP_ALERTS_CACHE.length === 1 ? 'y' : 'ies'} — tap to view`;
+    } else {
+      banner.style.display = 'none';
+    }
+  } catch (e) {}
+}
+async function openDupAlertModal() {
+  if (!DUP_ALERTS_CACHE.length) return;
+  let inner = `<div style="font-weight:800;font-size:15px;margin-bottom:4px;color:#C0392B;">⚠️ Duplicate Tag No Entries</div>
+    <div class="note" style="text-align:left;padding:0 0 10px;">Same Tag No entered a second time — usually an offline entry that missed the live "already sold" check.</div>
+    <div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Tag No</th><th>Employee</th><th>Date</th><th>New DSR</th><th>Already Sold In</th></tr></thead><tbody>` +
+    DUP_ALERTS_CACHE.map(a => `<tr><td><b>${escHtml(a.tagNo || '—')}</b></td><td>${escHtml(properCase(a.employee) || '—')}</td><td>${escHtml(fmtDMY(a.billDate))}</td><td>${escHtml(a.newDsrId || '—')}</td><td>${escHtml(a.collidingDsrId || '—')}</td></tr>`).join('') +
+    '</tbody></table></div>';
+  ovSimpleModal(inner);
+  // Mark the newest of these as seen so the banner doesn't pop up again for the same alerts.
+  const maxTs = DUP_ALERTS_CACHE.reduce((m, a) => Math.max(m, a.ts || 0), 0);
+  if (maxTs) await idbSet('meta', 'dupAlertLastSeenTs', maxTs);
+  document.getElementById('dupAlertBanner').style.display = 'none';
 }
 
 // ---- Cascading filters (BRO: "counter select cheste aa counter lo unnavi matrame Product list lo
@@ -1360,15 +1403,47 @@ function prevDateStr_(d) {
   const p = n => String(n).padStart(2, '0');
   return dt.getFullYear() + '-' + p(dt.getMonth() + 1) + '-' + p(dt.getDate());
 }
-const LEDGER_CACHE = {}; // { [uptoDate]: {sales:[...], outletIssues:[...], rdr:[...]} } — this session only.
+const LEDGER_CACHE = {}; // { [uptoDate]: {sales:[...], outletIssues:[...], rdr:[...]} } — in-memory, this session.
 const LEDGER_RDR_ROWS = {}; // { [date]: rdr[] } — v-add (Return/Damage/Repair) — for ovShowRdrDetail's popup
+const LEDGER_IDB_PREFIX = 'ledgerData_';
+// v-fix (BRO: "ledge data stock phto lo loading late avutundi. koddiga fast ga load avali... avi kuda
+// offline lo cache laga pettu. stockphoto file lo pettu. portal vaddu... evaru adi personal ga use
+// cheyaru so danlto data cache lo save aina no issue" — Ledger data (Sale/Outlet Issue/Return-Damage-
+// Repair history) used to be fetched fresh from the server every single time, with nothing kept between
+// app opens — slow, and useless offline. Now it's cached in IndexedDB too, same place Stock/Sold/Photos
+// already live, and the same cache-first pattern: a date that's been opened before shows INSTANTLY from
+// the saved copy, then a quiet background refresh brings it up to date and re-renders if that same date
+// is still on screen. This is this file only (the shared shop-floor device) — Portal is deliberately
+// left untouched, a live fetch every time, since BRO only asked for this on Stock Photos.
 async function fetchLedgerUpto_(uptoDate) {
   if (LEDGER_CACHE[uptoDate]) return LEDGER_CACHE[uptoDate];
+  const cached = await idbGet('meta', LEDGER_IDB_PREFIX + uptoDate);
+  if (cached) {
+    LEDGER_CACHE[uptoDate] = cached;
+    refreshLedgerUpto_(uptoDate); // quietly bring it up to date in the background
+    return cached;
+  }
   const res = await dsrApi({ action: 'ledgerData', uptoDate });
   if (!res || !res.ok) throw new Error((res && res.message) || 'Could not load DSR data.');
   const data = { sales: res.sales || [], outletIssues: res.outletIssues || [], rdr: res.rdr || [] };
   LEDGER_CACHE[uptoDate] = data;
+  idbSet('meta', LEDGER_IDB_PREFIX + uptoDate, data);
   return data;
+}
+async function refreshLedgerUpto_(uptoDate) {
+  if (!navigator.onLine) return;
+  try {
+    const res = await dsrApi({ action: 'ledgerData', uptoDate });
+    if (!res || !res.ok) return;
+    const data = { sales: res.sales || [], outletIssues: res.outletIssues || [], rdr: res.rdr || [] };
+    LEDGER_CACHE[uptoDate] = data;
+    idbSet('meta', LEDGER_IDB_PREFIX + uptoDate, data);
+    // Still looking at this exact date? Re-render so the screen catches up to the fresh data.
+    const dateInput = document.getElementById('ovLedgerDate');
+    if (document.getElementById('ovLedgerView').style.display !== 'none' && dateInput && dateInput.value === uptoDate) {
+      ovLoadLedger();
+    }
+  } catch (e) {}
 }
 // v-add (BRO's Return/Damage/Repair feature — "stock phto lo kuda option ivu") — a tiny reusable popup,
 // same dark-overlay look as the photo viewer (openViewer above) but a plain white info card instead.
@@ -1526,7 +1601,16 @@ async function ovLoadLedger() {
   let html = `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:center;">Opening</th><th style="text-align:center;">Receiving</th><th style="text-align:center;">Sold</th><th style="text-align:center;">Return</th><th style="text-align:center;">Outlet Issue</th><th style="text-align:center;">Closing</th></tr></thead><tbody>`;
   list.forEach(r => {
     const retCell = r.ret > 0 ? `<a href="#" onclick="ovShowRdrDetail('${escJs(r.key)}','${dateVal}','${escJs(properCase(r.product))}',${byDesign});return false;" style="color:#B03A2E;font-weight:800;text-decoration:underline;">${r.ret}</a>` : r.ret;
-    html += `<tr><td>${escHtml(properCase(r.product))}</td>${byDesign ? `<td>${escHtml(properCase(r.design) || '—')}</td>` : ''}<td style="text-align:center;">${r.opening}</td><td style="text-align:center;">${r.receiving}</td><td style="text-align:center;">${r.sold}</td><td style="text-align:center;">${retCell}</td><td style="text-align:center;">${r.outlet}</td><td style="text-align:center;">${r.closing}</td></tr>`;
+    // v-add (BRO: "opening and closing different 4 undi. aavi evi evi ani ela telustundi" — when a
+    // row's Opening and Closing don't match (TODAY only, since that's the only live-counted column),
+    // the Closing number is now clickable to see the actual Tag Nos sitting in stock for that
+    // Product(+Design) right now, each with its Entry Type/Entry Date — so whatever's causing the
+    // gap (an item added/edited in a way none of Receiving/Sold/Return/Outlet Issue caught) can be
+    // spotted by eye instead of staying a mystery number.
+    const closingCell = (isToday && r.opening !== r.closing)
+      ? `<a href="#" onclick="ovShowStockTagsDetail_('${escJs(r.key)}','${escJs(properCase(r.product))}',${byDesign});return false;" style="color:var(--purple);font-weight:800;text-decoration:underline;">${r.closing}</a>`
+      : r.closing;
+    html += `<tr><td>${escHtml(properCase(r.product))}</td>${byDesign ? `<td>${escHtml(properCase(r.design) || '—')}</td>` : ''}<td style="text-align:center;">${r.opening}</td><td style="text-align:center;">${r.receiving}</td><td style="text-align:center;">${r.sold}</td><td style="text-align:center;">${retCell}</td><td style="text-align:center;">${r.outlet}</td><td style="text-align:center;">${closingCell}</td></tr>`;
   });
   html += `<tr style="font-weight:800;border-top:2px solid var(--gold);"><td>Total</td>${byDesign ? '<td></td>' : ''}<td style="text-align:center;">${tot.opening}</td><td style="text-align:center;">${tot.receiving}</td><td style="text-align:center;">${tot.sold}</td><td style="text-align:center;">${tot.ret}</td><td style="text-align:center;">${tot.outlet}</td><td style="text-align:center;">${tot.closing}</td></tr>`;
   html += '</tbody></table></div>';
@@ -1550,6 +1634,25 @@ function ovShowRdrDetail(key, date, productLabel, byDesign) {
   }
   ovSimpleModal(inner);
 }
+
+// v-add (BRO: "opening and closing different 4 undi. aavi evi evi ani ela telustundi" — the Tag Nos
+// behind a mismatched Opening/Closing, straight from the live Stock snapshot (same data Closing itself
+// is counted from), sorted most-recently-added first so whatever's new stands out immediately.
+function ovShowStockTagsDetail_(key, productLabel, byDesign) {
+  const rows = STOCK_SNAPSHOT.filter(r => rowCounter_(r) === OV.curCounter && groupKeyForDetail_(r, byDesign) === key)
+    .slice().sort((a, b) => new Date(b.entryDate || b.addedAt || 0) - new Date(a.entryDate || a.addedAt || 0));
+  let inner = `<div style="font-weight:800;font-size:15px;margin-bottom:4px;">📦 ${escHtml(productLabel)} — Items In Stock Now</div>
+    <div class="note" style="text-align:left;padding:0 0 10px;">${rows.length} item${rows.length === 1 ? '' : 's'} — most recently added first.</div>`;
+  if (!rows.length) {
+    inner += '<div class="empty" style="padding:20px 0;">No items found.</div>';
+  } else {
+    inner += `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Tag No</th><th>Entry Type</th><th>Entry Date</th></tr></thead><tbody>` +
+      rows.map(r => `<tr><td><b>${escHtml(r.tagNo || '—')}</b></td><td>${escHtml(r.entryType || '—')}</td><td>${escHtml(fmtDMY(r.entryDate))}</td></tr>`).join('') +
+      '</tbody></table></div>';
+  }
+  ovSimpleModal(inner);
+}
+function groupKeyForDetail_(r, byDesign) { return byDesign ? (r.productName + '|' + String(r.design || '').trim()) : r.productName; }
 
 // v-add (BRO: "stock phto file lo opening closing sold return ila anni icharu, danto patu receiving
 // kuda ivu. receiving ante stock entry form lo receiving dantlo enter chesina vi kavali. separata ga
