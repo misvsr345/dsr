@@ -209,6 +209,10 @@
 </header>
 <div id="offlineBanner">📴 Offline — showing saved photos</div>
 <div id="syncBanner"></div>
+<!-- v-add (BRO: "duplicate tag entry elert ... stock phtos lo kuda ravali. tag no and emp name date
+     tho ravali." — a duplicate Tag No entry alert banner, clickable to see the Tag No / Employee /
+     Date detail for each one. -->
+<div id="dupAlertBanner" onclick="openDupAlertModal()" style="display:none;background:#C0392B;color:#fff;font-size:12.5px;font-weight:800;text-align:center;padding:9px 10px;cursor:pointer;"></div>
 
 <div class="wrap">
   <div class="tabbar">
@@ -1573,10 +1577,12 @@ function loadReceivingData() {
     summary.textContent = '';
     return;
   }
+  const range = dateRangeForMode_(RECV, 'recvStart', 'recvEnd');
+  if (!range) { summary.textContent = ''; body.innerHTML = '<div class="empty">Select both Start and End date.</div>'; return; }
   const counter = document.getElementById('recvCounter').value;
   const q = document.getElementById('recvQ').value.trim().toUpperCase();
   const needleTag = normTag(q);
-  let rows = allEntryRows_().filter(r => r.entryType === 'Receiving Stock');
+  let rows = allEntryRows_().filter(r => r.entryType === 'Receiving Stock' && r.entryDate && r.entryDate >= range.start && r.entryDate <= range.end);
   if (counter) rows = rows.filter(r => rowCounter_(r) === counter);
   if (q) rows = rows.filter(r => (needleTag && normTag(r.tagNo).indexOf(needleTag) > -1) || String(r.productName || '').toUpperCase().indexOf(q) > -1);
   // Most recently received first.
@@ -1630,11 +1636,13 @@ async function loadRdrData() {
   }
   if (document.getElementById('tabRdr').style.display === 'none') return;
 
+  const range = dateRangeForMode_(RDR, 'rdrStart', 'rdrEnd');
+  if (!range) { summary.textContent = ''; body.innerHTML = '<div class="empty">Select both Start and End date.</div>'; return; }
   const tagIdx = buildTagIndex_();
   const counter = document.getElementById('rdrCounter').value;
   const q = document.getElementById('rdrQ').value.trim().toUpperCase();
   const needleTag = normTag(q);
-  let rows = (ledgerData.rdr || []).map(r => {
+  let rows = (ledgerData.rdr || []).filter(r => r.date && r.date >= range.start && r.date <= range.end).map(r => {
     const hit = tagIdx[normTag(r.tagNo)];
     return Object.assign({}, r, { counter: hit ? hit.counter : '' });
   });
@@ -1679,6 +1687,30 @@ function applyDateModeStyle_(mode, todayBtn, yestBtn, customBtn, customBoxId, co
 function setSoldMode(mode) {
   SOLD.mode = mode;
   applyDateModeStyle_(mode, document.getElementById('soldModeTodayBtn'), document.getElementById('soldModeYesterdayBtn'), document.getElementById('soldModeCustomBtn'), 'soldCustomBox', 'var(--acc-sold)');
+}
+// v-add (BRO: "sold tab lo unnatu today yesteday custome date anniti lo pettu" — same Today/Yesterday/
+// Custom Date quick-filter as Sold, now on Receiving and RDR too, each in that tab's own accent color.
+const RECV = { mode: 'today' };
+function setRecvMode(mode) {
+  RECV.mode = mode;
+  applyDateModeStyle_(mode, document.getElementById('recvModeTodayBtn'), document.getElementById('recvModeYesterdayBtn'), document.getElementById('recvModeCustomBtn'), 'recvCustomBox', 'var(--acc-receiving)');
+  loadReceivingData();
+}
+const RDR = { mode: 'today' };
+function setRdrMode(mode) {
+  RDR.mode = mode;
+  applyDateModeStyle_(mode, document.getElementById('rdrModeTodayBtn'), document.getElementById('rdrModeYesterdayBtn'), document.getElementById('rdrModeCustomBtn'), 'rdrCustomBox', 'var(--acc-rdr)');
+  loadRdrData();
+}
+// Shared by loadReceivingData/loadRdrData below — turns a tab's {mode} into a concrete [start, end]
+// date range, same today/yesterday/custom rule the Sold tab already uses.
+function dateRangeForMode_(modeObj, startId, endId) {
+  if (modeObj.mode === 'custom') {
+    const start = document.getElementById(startId).value, end = document.getElementById(endId).value;
+    return (start && end) ? { start, end } : null;
+  }
+  if (modeObj.mode === 'yesterday') { const d = prevDateStr_(todayStr_ph()); return { start: d, end: d }; }
+  const d = todayStr_ph(); return { start: d, end: d };
 }
 function loadSoldData() {
   const body = document.getElementById('soldBody'), summary = document.getElementById('soldSummary');
