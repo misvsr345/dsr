@@ -546,11 +546,23 @@ async function loadTagLookup() {
   const body = document.getElementById('tagLookupBody');
   if (!tagNoRaw) { body.innerHTML = ''; TAG_LOOKUP_PHOTO = ''; return; }
   const needle = normTag(tagNoRaw);
+  // v-fix (BRO: "stock phto file lo data cache lo save chei ani cheppanu... old tag no search chete,
+  // load ani tirugutundi" — this used to just DISPLAY a "Loading..." message and stop right there, with
+  // nothing left anywhere to actually fetch the data or re-run the search once it arrived — so if the
+  // Stock/Sold/DSR snapshots hadn't finished caching yet, it stayed stuck on "Loading..." forever. Now
+  // it genuinely fetches and waits before continuing, so the search always finishes one way or another.
   if (!DSR_SNAPSHOT.length && !STOCK_SNAPSHOT.length && !SOLD_SNAPSHOT.length) {
-    body.innerHTML = (navigator.onLine
-      ? '<div class="loading"><span class="spinner"></span>Loading...</div>'
-      : '<div class="empty">No offline data saved yet — connect once to load.</div>') + reloadBtnHtml();
-    return;
+    if (!navigator.onLine) {
+      body.innerHTML = '<div class="empty">No offline data saved yet — connect once to load.</div>' + reloadBtnHtml();
+      return;
+    }
+    body.innerHTML = '<div class="loading"><span class="spinner"></span>Loading data for the first time...</div>';
+    try { await refreshOverviewSnapshots(); } catch (e) {}
+    if (normTag(document.getElementById('tagLookupQ').value) !== needle) return; // box changed while loading
+    if (!DSR_SNAPSHOT.length && !STOCK_SNAPSHOT.length && !SOLD_SNAPSHOT.length) {
+      body.innerHTML = '<div class="empty">Could not load data — check internet and try again.</div>' + reloadBtnHtml();
+      return;
+    }
   }
   body.innerHTML = '<div class="loading"><span class="spinner"></span>Searching...</div>';
 
