@@ -389,9 +389,11 @@
         <div><label>Start Date</label><input type="date" id="recvStart" onchange="loadReceivingData()"></div>
         <div><label>End Date</label><input type="date" id="recvEnd" onchange="loadReceivingData()"></div>
       </div>
+      <!-- v-fix (BRO: "except photo tab and tag serch tab, migata anniti dagara aremaove hcei. only
+           ee rendu dagara matrame tag seach option pettu" — Tag No search now lives only in the Photos
+           tab and the dedicated Tag tab; removed here. -->
       <div class="filters">
         <div><label>Counter</label><select id="recvCounter" onchange="loadReceivingData()"><option value="">All</option></select></div>
-        <div class="full"><label>Search</label><input type="text" id="recvQ" placeholder="Tag No or Product name..." autocomplete="off" oninput="loadReceivingData()" onkeydown="if(event.key==='Enter')loadReceivingData()"></div>
       </div>
     </div>
     <div id="receivingSummary" class="note"></div>
@@ -420,9 +422,11 @@
         <div><label>Start Date</label><input type="date" id="rdrStart" onchange="loadRdrData()"></div>
         <div><label>End Date</label><input type="date" id="rdrEnd" onchange="loadRdrData()"></div>
       </div>
+      <!-- v-fix (BRO: "except photo tab and tag serch tab, migata anniti dagara aremaove hcei. only
+           ee rendu dagara matrame tag seach option pettu" — Tag No search now lives only in the Photos
+           tab and the dedicated Tag tab; removed here. -->
       <div class="filters">
         <div><label>Counter</label><select id="rdrCounter" onchange="loadRdrData()"><option value="">All</option></select></div>
-        <div class="full"><label>Search</label><input type="text" id="rdrQ" placeholder="Tag No or Product name..." autocomplete="off" oninput="loadRdrData()" onkeydown="if(event.key==='Enter')loadRdrData()"></div>
       </div>
     </div>
     <div id="rdrSummary" class="note"></div>
@@ -526,16 +530,15 @@ function api(params) {
   return fetch(STOCK_GAS_URL + '?' + qs).then(r => r.json());
 }
 
-// v-add (BRO: "dsr mail file and achive lo unna tag no searach chesina sold tab lo and over view tab
-// lo tag no search option lo ravali. and dsr lo unna old tag no unnavi matrame photos lo sold option
-// lo ravali." — a Tag No sold BEFORE Stock Level existed only lives in the DSR Main file/Archive, never
-// in Stock Level's own Sold sheet, so it's invisible to this page's offline Stock/Sold snapshot. This
-// live fallback (DSRBackend.gs's existing searchByTagNo action, Main file + Archive) catches those,
-// used by the Overview/Sold/Photos tabs below whenever a Tag No search comes up empty locally. No login
-// here, so results still come back masked same as the rest of this no-login page already is — mobile
-// number and address stay hidden — but DO include Tag No/Product/Design/Employee/Date/DSR ID/Bill No/
-// Payment Status AND Photo (BRO: "aa tag no pai click cehste, details ralai. with phto"). Only
-// customerName/mobile/address are left out of what this modal actually renders.
+// v-add (BRO: "anni tab lopala tag no serch vaddu photo tab tappa. photo tab pakkaana tag ani tab
+// pettu. adi cilck cheste tag details ravali. old and new anni ravli. bill date customer name, anni
+// ravali. dsr id kuda ravli. iff possibel bill no kuda ravlai. sale, return, etc entair history
+// ralvali tag no related data ravali." — ONE dedicated Tag No lookup tab (not scattered search boxes):
+// current Stock Level status + photo, PLUS every DSR Sale this tag was ever part of (a reused tag
+// shows every sale, old and new — DSRBackend.gs's searchByTagNo already scans Main file + Archive),
+// PLUS every Outlet Issue and Return/Damage/Repair, as one combined history sorted newest first.
+// DSRBackend.gs now sends Photo back for this even without login (see dsrBuildSearchEntry_) — mobile
+// number and address are the only fields still held back.
 async function dsrTagFallbackSearch_(tagNo) {
   try {
     const res = await dsrApi({ action: 'searchByTagNo', tagNo });
@@ -543,68 +546,71 @@ async function dsrTagFallbackSearch_(tagNo) {
     return res.results || [];
   } catch (e) { return []; }
 }
-// v-fix (BRO: "aa tag no pai click cehste, details ralai. with phto" — the Tag No in each result row
-// is now a clickable link, opening a photo + full-detail popup (DSRBackend.gs now sends photoUrl back
-// for a DSR-fallback hit too, not just an admin/logged-in caller — see dsrBuildSearchEntry_).
-let TAG_SEARCH_LOCAL_HITS = [];
-let TAG_SEARCH_DSR_HITS = [];
-function showTagSearchResultModal_(tagNo, localHits, dsrHits) {
-  TAG_SEARCH_LOCAL_HITS = localHits;
-  TAG_SEARCH_DSR_HITS = dsrHits;
-  let inner = `<div style="font-weight:800;font-size:15px;margin-bottom:4px;">🔍 Tag No — ${escHtml(tagNo)}</div>`;
-  if (!localHits.length && !dsrHits.length) {
-    inner += '<div class="empty" style="padding:20px 0;">No match found — neither in Stock Level nor DSR records.</div>';
-  } else {
-    if (localHits.length) {
-      inner += `<div class="note" style="text-align:left;padding:6px 0 4px;font-weight:800;">In Stock Level (tap Tag No for photo):</div>
-        <div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Tag No</th><th>Product</th><th>Design</th><th>Counter</th><th>Status</th></tr></thead><tbody>` +
-        localHits.map((r, i) => `<tr><td><a href="#" onclick="showTagDetailWithPhoto_('local',${i});return false;" style="color:var(--purple-mid);font-weight:800;text-decoration:underline;">${escHtml(r.tagNo || '—')}</a></td><td>${escHtml(properCase(r.productName) || '—')}</td><td>${escHtml(properCase(r.design) || '—')}</td><td>${escHtml(rowCounter_(r))}</td><td>${r.status === 'sold' ? 'Sold' : 'In Stock'}</td></tr>`).join('') +
-        '</tbody></table></div>';
-    }
-    if (dsrHits.length) {
-      inner += `<div class="note" style="text-align:left;padding:10px 0 4px;font-weight:800;">In DSR Records (older — not in Stock Level; tap Tag No for photo):</div>
-        <div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Tag No</th><th>Product</th><th>Employee</th><th>Date</th><th>DSR ID</th></tr></thead><tbody>` +
-        dsrHits.map((r, i) => `<tr><td><a href="#" onclick="showTagDetailWithPhoto_('dsr',${i});return false;" style="color:var(--purple-mid);font-weight:800;text-decoration:underline;">${escHtml(r.tagNo || '—')}</a></td><td>${escHtml(properCase(r.productName) || '—')}</td><td>${escHtml(properCase(r.employeeName) || '—')}</td><td>${escHtml(fmtDMY(r.billDate))}</td><td>${escHtml(r.dsrId || '—')}</td></tr>`).join('') +
-        '</tbody></table></div>';
-    }
+async function loadTagLookup() {
+  const tagNoRaw = document.getElementById('tagLookupQ').value.trim();
+  const body = document.getElementById('tagLookupBody');
+  if (!tagNoRaw) { body.innerHTML = ''; return; }
+  const needle = normTag(tagNoRaw);
+  body.innerHTML = '<div class="loading"><span class="spinner"></span>Searching...</div>';
+
+  const localHits = allEntryRows_().filter(r => normTag(r.tagNo) === needle);
+  let dsrHits = [], ledgerData = { rdr: [], outletIssues: [] };
+  try {
+    const results = await Promise.all([dsrTagFallbackSearch_(tagNoRaw), fetchLedgerUpto_(todayStr_ph())]);
+    dsrHits = results[0];
+    ledgerData = results[1] || ledgerData;
+  } catch (e) {}
+  // the person may have changed the search box while the fetch above was in flight
+  if (normTag(document.getElementById('tagLookupQ').value) !== needle) return;
+
+  const rdrHits = (ledgerData.rdr || []).filter(r => normTag(r.tagNo) === needle);
+  const outletHits = (ledgerData.outletIssues || []).filter(r => normTag(r.tagNo) === needle);
+
+  if (!localHits.length && !dsrHits.length && !rdrHits.length && !outletHits.length) {
+    body.innerHTML = '<div class="empty">No record found for this Tag No — check it and try again.</div>';
+    return;
   }
-  ovSimpleModal(inner);
-}
-// Photo + full-detail popup for a clicked Tag No from either results block above — same cache-first
-// resolveImgSrc() the rest of this page already uses, so a photo already downloaded once opens
-// instantly offline too.
-async function showTagDetailWithPhoto_(kind, idx) {
-  const r = kind === 'local' ? TAG_SEARCH_LOCAL_HITS[idx] : TAG_SEARCH_DSR_HITS[idx];
-  if (!r) return;
-  const photo = kind === 'local' ? r.photo : r.photoUrl;
-  const rows = kind === 'local'
-    ? [['Tag No', r.tagNo], ['Product', properCase(r.productName)], ['Design', properCase(r.design) || '—'], ['Counter', rowCounter_(r)], ['Weight', fmtWt(r.weight) ? fmtWt(r.weight) + ' gm' : '—'], ['Status', r.status === 'sold' ? 'Sold' : 'In Stock']]
-    : [['Tag No', r.tagNo], ['Product', properCase(r.productName)], ['Design', properCase(r.design) || '—'], ['Weight', fmtWt(r.weight) ? fmtWt(r.weight) + ' gm' : '—'], ['Employee', properCase(r.employeeName) || '—'], ['Date', fmtDMY(r.billDate)], ['DSR ID', r.dsrId || '—'], ['Bill No', r.billNo || '—'], ['Payment Status', r.paymentStatus || '—']];
-  const old = document.getElementById('tagDetailModal'); if (old) old.remove();
-  const div = document.createElement('div');
-  div.id = 'tagDetailModal';
-  div.className = 'overlay';
-  div.innerHTML = `<div class="stage-box" style="max-width:520px;max-height:85vh;background:#fff;">
-      <button class="close-x" onclick="document.getElementById('tagDetailModal').remove()">✕</button>
-      <div class="stage" style="height:44vh;background:#F1E8D6;"><img id="tagDetailImg" src="" alt="Loading..." style="width:100%;height:100%;object-fit:contain;"></div>
-      <div class="info-box" style="max-height:40vh;">
-        <table class="info">${rows.map(([lbl, val]) => `<tr><td class="lbl">${escHtml(lbl)}</td><td class="val">${escHtml(val || '—')}</td></tr>`).join('')}</table>
+
+  let html = '';
+  const cur = localHits[0];
+  if (cur) {
+    html += `<div class="card" style="display:flex;gap:12px;align-items:center;">
+      <div style="width:84px;height:84px;border-radius:10px;overflow:hidden;flex-shrink:0;background:#F1E8D6;"><img id="tagLookupImg" style="width:100%;height:100%;object-fit:cover;" alt=""></div>
+      <div>
+        <div style="font-weight:800;font-size:15px;color:var(--purple);">${escHtml(properCase(cur.productName) || '—')}${cur.design ? ' — ' + escHtml(properCase(cur.design)) : ''}</div>
+        <div class="note" style="text-align:left;padding:4px 0 0;">Counter: <b>${escHtml(rowCounter_(cur))}</b> &nbsp;·&nbsp; Status: <b>${cur.status === 'sold' ? 'Sold' : 'In Stock'}</b>${cur.weight ? ' &nbsp;·&nbsp; ' + fmtWt(cur.weight) + ' gm' : ''}</div>
       </div>
     </div>`;
-  document.body.appendChild(div);
-  div.addEventListener('click', e => { if (e.target === div) div.remove(); });
-  const src = photo ? await resolveImgSrc(photo) : null;
-  const img = document.getElementById('tagDetailImg');
-  if (!img) return;
-  if (src) img.src = src; else img.alt = '📷 No photo available';
-}
-async function searchTagEverywhere_(tagNo) {
-  const needle = normTag(tagNo);
-  if (!needle) return;
-  const localHits = allEntryRows_().filter(r => normTag(r.tagNo) === needle);
-  let dsrHits = [];
-  if (!localHits.length) dsrHits = await dsrTagFallbackSearch_(tagNo);
-  showTagSearchResultModal_(tagNo, localHits, dsrHits);
+  }
+
+  const events = [];
+  dsrHits.forEach(r => events.push({ date: r.billDate, kind: 'sale', data: r }));
+  outletHits.forEach(r => events.push({ date: r.date, kind: 'outlet', data: r }));
+  rdrHits.forEach(r => events.push({ date: r.date, kind: 'rdr', data: r }));
+  events.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+  if (events.length) {
+    html += `<div class="card"><div style="font-weight:800;font-size:14px;color:var(--acc-tag);margin-bottom:8px;">📜 Entire History — ${events.length} event${events.length === 1 ? '' : 's'}</div>
+      <div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Date</th><th>Event</th><th>Detail</th></tr></thead><tbody>` +
+      events.map(e => {
+        if (e.kind === 'sale') {
+          const r = e.data;
+          return `<tr><td>${escHtml(fmtDMY(r.billDate))}</td><td><span style="color:var(--green);font-weight:800;">🛒 Sold</span></td><td>Customer: ${escHtml(r.customerName || '—')}<br>DSR ID: <b>${escHtml(r.dsrId || '—')}</b>${r.billNo ? ' · Bill No: ' + escHtml(r.billNo) : ''}<br>Employee: ${escHtml(properCase(r.employeeName) || '—')}${r.paymentStatus ? ' · ' + escHtml(r.paymentStatus) : ''}</td></tr>`;
+        }
+        if (e.kind === 'outlet') {
+          const r = e.data;
+          return `<tr><td>${escHtml(fmtDMY(r.date))}</td><td><span style="color:#8a5a00;font-weight:800;">📤 Outlet Issue</span></td><td>${r.shopName ? 'Shop: ' + escHtml(r.shopName) + '<br>' : ''}Employee: ${escHtml(properCase(r.employee) || '—')}</td></tr>`;
+        }
+        const r = e.data;
+        return `<tr><td>${escHtml(fmtDMY(r.date))}</td><td><span style="color:var(--red);font-weight:800;">↩️ ${escHtml(r.reason || 'Return')}</span></td><td>Employee: ${escHtml(properCase(r.employee) || '—')}${r.rdrId ? ' · RDR ID: ' + escHtml(r.rdrId) : ''}</td></tr>`;
+      }).join('') +
+      '</tbody></table></div></div>';
+  }
+
+  body.innerHTML = html;
+  if (cur && cur.photo) {
+    resolveImgSrc(cur.photo).then(src => { const img = document.getElementById('tagLookupImg'); if (img && src) img.src = src; });
+  }
 }
 
 // ---- IndexedDB: 'meta' store holds the one cached full item list; 'images' store holds one blob per
@@ -1107,15 +1113,10 @@ function applyFiltersAndRender() {
 function renderGrid() {
   const grid = document.getElementById('grid'), moreWrap = document.getElementById('moreWrap');
   if (!PH.items.length) {
-    // v-add (BRO: "dsr lo unna old tag no unnavi matrame photos lo sold option lo ravali" — a Tag No
-    // sold before Stock Level existed won't be in this page's offline Photos data at all (no photo was
-    // ever captured there, since this page's "Sold" comes from Stock Level's own Sold sheet), so a
-    // search for one comes up empty here. Rather than a dead end, offer the same DSR Main file/Archive
-    // fallback search the Overview/Sold tabs use, so the old record is still findable (minus a photo).
-    const q = (document.getElementById('phQ').value || '').trim();
-    grid.innerHTML = '<div class="empty">No photos found for this filter.' +
-      (q ? `<br><button class="btn btn-sec" style="width:auto;padding:8px 16px;margin-top:10px;" onclick="searchTagEverywhere_('${escJs(q)}')">🔍 Search DSR Records for "${escHtml(q)}"</button>` : '') +
-      '</div>';
+    // v-fix (BRO: "phtos tab tappa, anni ti lo remove chei. no need tag no search button. tag tab lo
+    // ika nundi vastundi. so no need." — no redirect button here any more; the Tag tab on its own is
+    // where a Tag No lookup (including the DSR Main file/Archive fallback) now lives.
+    grid.innerHTML = '<div class="empty">No photos found for this filter.</div>';
     moreWrap.innerHTML = '';
     return;
   }
@@ -1802,11 +1803,8 @@ function loadReceivingData() {
   const range = dateRangeForMode_(RECV, 'recvStart', 'recvEnd');
   if (!range) { summary.textContent = ''; body.innerHTML = '<div class="empty">Select both Start and End date.</div>'; return; }
   const counter = document.getElementById('recvCounter').value;
-  const q = document.getElementById('recvQ').value.trim().toUpperCase();
-  const needleTag = normTag(q);
   let rows = allEntryRows_().filter(r => r.entryType === 'Receiving Stock' && r.entryDate && r.entryDate >= range.start && r.entryDate <= range.end);
   if (counter) rows = rows.filter(r => rowCounter_(r) === counter);
-  if (q) rows = rows.filter(r => (needleTag && normTag(r.tagNo).indexOf(needleTag) > -1) || String(r.productName || '').toUpperCase().indexOf(q) > -1);
   // Most recently received first.
   rows = rows.slice().sort((a, b) => new Date(b.addedAt || b.entryDate || 0) - new Date(a.addedAt || a.entryDate || 0));
 
@@ -1862,14 +1860,11 @@ async function loadRdrData() {
   if (!range) { summary.textContent = ''; body.innerHTML = '<div class="empty">Select both Start and End date.</div>'; return; }
   const tagIdx = buildTagIndex_();
   const counter = document.getElementById('rdrCounter').value;
-  const q = document.getElementById('rdrQ').value.trim().toUpperCase();
-  const needleTag = normTag(q);
   let rows = (ledgerData.rdr || []).filter(r => r.date && r.date >= range.start && r.date <= range.end).map(r => {
     const hit = tagIdx[normTag(r.tagNo)];
     return Object.assign({}, r, { counter: hit ? hit.counter : '' });
   });
   if (counter) rows = rows.filter(r => r.counter === counter);
-  if (q) rows = rows.filter(r => (needleTag && normTag(r.tagNo).indexOf(needleTag) > -1) || String(r.productName || '').toUpperCase().indexOf(q) > -1);
   rows = rows.slice().sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
   if (!rows.length) {
