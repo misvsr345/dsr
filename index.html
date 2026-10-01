@@ -582,7 +582,15 @@ async function loadTagLookup() {
     return;
   }
 
-  const cur = localHits[0];
+  // v-fix (BRO: "enni sync lu chesina instock ani chupistundi" — tag was genuinely Sold [confirmed
+  // directly in the Stock Level sheet], sync was working fine, but the card always said "In Stock"
+  // anyway. Root cause: `cur.status === 'sold'` below compared against a lowercase 'sold', but the
+  // real field value coming back from the Sold sheet is 'Sold' (capital S) — so that check could NEVER
+  // be true, for ANY sold tag, ever. Now we look the tag up in STOCK_SNAPSHOT/SOLD_SNAPSHOT separately
+  // instead of trusting a status string field at all, so it can't go case-mismatched like that again.
+  const stockHit = STOCK_SNAPSHOT.find(r => normTag(r.tagNo) === needle);
+  const soldHit = SOLD_SNAPSHOT.find(r => normTag(r.tagNo) === needle);
+  const cur = stockHit || soldHit;
   // Most recent DSR sale of this tag (if any) — fills in product/design/weight/photo/customer for OLD
   // tags that were sold before Stock Level existed (so there's no Stock/Sold snapshot row at all), and
   // is also the source for "who it was last sold to" even when the tag IS currently in Stock/Sold.
@@ -611,7 +619,7 @@ async function loadTagLookup() {
     if (sameProd) counter = rowCounter_(sameProd);
   }
 
-  const statusLabel = cur ? (cur.status === 'sold' ? 'Sold' : 'In Stock') : (latestSale ? 'Sold' : '—');
+  const statusLabel = stockHit ? 'In Stock' : (soldHit ? 'Sold' : (latestSale ? 'Sold' : '—'));
 
   let html = `<div class="card">
     <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;">
@@ -620,7 +628,7 @@ async function loadTagLookup() {
         <div class="note" style="text-align:left;padding:4px 0 0;">Counter: <b>${escHtml(counter || '—')}</b> &nbsp;·&nbsp; Status: <b>${escHtml(statusLabel)}</b>${weight ? ' &nbsp;·&nbsp; ' + fmtWt(weight) + ' gm' : ''}</div>
         ${latestSale && latestSale.customerName ? `<div class="note" style="text-align:left;padding:2px 0 0;">Customer: <b>${escHtml(latestSale.customerName)}</b></div>` : ''}
       </div>
-      ${photo ? `<button class="btn btn-sec" style="width:auto;padding:6px 14px;flex-shrink:0;" onclick="viewTagPhoto()">📷 View Photo</button>` : ''}
+      ${photo ? `<button class="btn btn-sec" style="width:auto;padding:5px 11px;flex-shrink:0;font-size:12px;font-weight:600;color:var(--acc-tag);border-color:var(--acc-tag);" onclick="viewTagPhoto()">📷 View Photo</button>` : ''}
     </div>
   </div>`;
 
