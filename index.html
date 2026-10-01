@@ -619,7 +619,7 @@ async function loadTagLookup() {
   events.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
   if (events.length) {
-    html += `<div class="card"><div style="font-weight:800;font-size:14px;color:var(--acc-tag);margin-bottom:8px;">📜 Entire History — ${events.length} event${events.length === 1 ? '' : 's'}</div>
+    html += `<div class="card"><div style="font-weight:800;font-size:14px;color:var(--acc-tag);margin-bottom:8px;">📜 History</div>
       <div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Date</th><th>Event</th><th>Detail</th></tr></thead><tbody>` +
       events.map(e => {
         if (e.kind === 'sale') {
