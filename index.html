@@ -2076,7 +2076,7 @@ initApp();
 // up to date on their own, with no visible interruption at all.
 setInterval(() => {
   if (!navigator.onLine || HEADER_SYNC_RUNNING) return;   // don't collide with a manual Sync tap
-  Promise.all([refreshSnapshot(), refreshOverviewSnapshots()]).catch(() => {});
+  Promise.all([refreshSnapshot(), refreshOverviewSnapshots(), refreshLedgerUpto_(todayStr_ph())]).catch(() => {});
 }, 5 * 60 * 1000);
 
 // v-add (BRO: "file open chesinapudu refresh data ravadam ledu, sync click chestene vastundi. file
@@ -2093,7 +2093,7 @@ function silentAutoSyncIfDue() {
   const now = Date.now();
   if (now - LAST_AUTO_SYNC_TS < 15000) return; // avoid double-firing (pageshow + visibilitychange together)
   LAST_AUTO_SYNC_TS = now;
-  Promise.all([refreshSnapshot(), refreshOverviewSnapshots()]).catch(() => {});
+  Promise.all([refreshSnapshot(), refreshOverviewSnapshots(), refreshLedgerUpto_(todayStr_ph())]).catch(() => {});
 }
 // Fires on every page load AND on a bfcache restore (e.vent.persisted === true is the "was suspended,
 // not truly reloaded" case — exactly the one that used to show stale data).
