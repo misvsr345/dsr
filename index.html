@@ -228,10 +228,14 @@
   <div class="card">
     <div class="filters">
       <div><label>Show</label>
+        <!-- v-fix (BRO: "potos select lo stock in only matrame defult lo undali. aa stock matrme
+             fileter lo undali" — "In Stock only" is now the default filter when the Photos tab opens,
+             instead of "All"; the other two options stay in the dropdown same as before, just not
+             picked by default any more. -->
         <select id="phStatus" onchange="filtersChanged('status')">
-          <option value="instock">In Stock only</option>
+          <option value="instock" selected>In Stock only</option>
           <option value="sold">Sold only</option>
-          <option value="all" selected>All (In Stock + Sold)</option>
+          <option value="all">All (In Stock + Sold)</option>
         </select>
       </div>
       <div><label>Counter</label><select id="phCounter" onchange="filtersChanged('counter')"><option value="">All</option></select></div>
@@ -265,6 +269,15 @@
   <div id="tabOverview">
     <div id="ovTilesView">
       <div class="tab-heading">📊 Stock Overview</div>
+      <!-- v-add (BRO: "dsr mail file and achive lo unna tag no searach chesina... over view tab lo tag
+           no search option lo ravali" — searches Stock Level first, then falls back to DSR Main
+           file/Archive (older tags sold before Stock Level existed, not otherwise findable here). -->
+      <div class="card" style="padding:10px 12px;margin-bottom:10px;">
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="ovTagSearch" placeholder="🔍 Search Tag No..." autocomplete="off" style="flex:1;" onkeydown="if(event.key==='Enter'){searchTagEverywhere_(this.value.trim());}">
+          <button class="btn" style="width:auto;padding:9px 18px;" onclick="searchTagEverywhere_(document.getElementById('ovTagSearch').value.trim())">Search</button>
+        </div>
+      </div>
       <div class="ov-grid" id="ovTiles"><div class="loading"><span class="spinner"></span>Loading...</div></div>
     </div>
     <div id="ovDetailView" style="display:none;">
@@ -332,6 +345,16 @@
         <div><label>End Date</label><input type="date" id="soldEnd"></div>
       </div>
       <button class="btn" onclick="loadSoldData()" style="margin-top:6px;">🔍 Show Sold Items</button>
+    </div>
+    <!-- v-add (BRO: "dsr mail file and achive lo unna tag no searach chesina sold tab lo... tag no
+         search option lo ravali" — a separate, all-time Tag No search (not limited by the
+         Today/Yesterday/Custom range above), falling back to DSR Main file/Archive for an older tag
+         that's not in Stock Level's own Sold sheet at all. -->
+    <div class="card" style="padding:10px 12px;">
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="soldTagSearch" placeholder="🔍 Search Tag No (any date)..." autocomplete="off" style="flex:1;" onkeydown="if(event.key==='Enter'){searchTagEverywhere_(this.value.trim());}">
+        <button class="btn" style="width:auto;padding:9px 18px;" onclick="searchTagEverywhere_(document.getElementById('soldTagSearch').value.trim())">Search</button>
+      </div>
     </div>
     <div id="soldSummary" class="note"></div>
     <div id="soldBody" class="ov-table-wrap"></div>
@@ -498,6 +521,50 @@ function fmtWt(v) { if (v == null || v === '') return ''; const n = parseFloat(v
 function api(params) {
   const qs = Object.entries(params).map(([k, v]) => k + '=' + encodeURIComponent(v == null ? '' : v)).join('&');
   return fetch(STOCK_GAS_URL + '?' + qs).then(r => r.json());
+}
+
+// v-add (BRO: "dsr mail file and achive lo unna tag no searach chesina sold tab lo and over view tab
+// lo tag no search option lo ravali. and dsr lo unna old tag no unnavi matrame photos lo sold option
+// lo ravali." — a Tag No sold BEFORE Stock Level existed only lives in the DSR Main file/Archive, never
+// in Stock Level's own Sold sheet, so it's invisible to this page's offline Stock/Sold snapshot. This
+// live fallback (DSRBackend.gs's existing searchByTagNo action, Main file + Archive) catches those,
+// used by the Overview/Sold/Photos tabs below whenever a Tag No search comes up empty locally. No login
+// here, so results come back masked same as the rest of this no-login page already is — Tag No/
+// Product/Employee/Date/DSR ID/Bill No/Payment Status, no photo, no Design, no mobile/address.
+async function dsrTagFallbackSearch_(tagNo) {
+  try {
+    const res = await dsrApi({ action: 'searchByTagNo', tagNo });
+    if (!res || res.status !== 'success') return [];
+    return res.results || [];
+  } catch (e) { return []; }
+}
+function showTagSearchResultModal_(tagNo, localHits, dsrHits) {
+  let inner = `<div style="font-weight:800;font-size:15px;margin-bottom:4px;">🔍 Tag No — ${escHtml(tagNo)}</div>`;
+  if (!localHits.length && !dsrHits.length) {
+    inner += '<div class="empty" style="padding:20px 0;">No match found — neither in Stock Level nor DSR records.</div>';
+  } else {
+    if (localHits.length) {
+      inner += `<div class="note" style="text-align:left;padding:6px 0 4px;font-weight:800;">In Stock Level:</div>
+        <div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Tag No</th><th>Product</th><th>Design</th><th>Counter</th><th>Status</th></tr></thead><tbody>` +
+        localHits.map(r => `<tr><td><b>${escHtml(r.tagNo || '—')}</b></td><td>${escHtml(properCase(r.productName) || '—')}</td><td>${escHtml(properCase(r.design) || '—')}</td><td>${escHtml(rowCounter_(r))}</td><td>${r.status === 'sold' ? 'Sold' : 'In Stock'}</td></tr>`).join('') +
+        '</tbody></table></div>';
+    }
+    if (dsrHits.length) {
+      inner += `<div class="note" style="text-align:left;padding:10px 0 4px;font-weight:800;">In DSR Records (older — not in Stock Level):</div>
+        <div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Tag No</th><th>Product</th><th>Employee</th><th>Date</th><th>DSR ID</th></tr></thead><tbody>` +
+        dsrHits.map(r => `<tr><td><b>${escHtml(r.tagNo || '—')}</b></td><td>${escHtml(properCase(r.productName) || '—')}</td><td>${escHtml(properCase(r.employeeName) || '—')}</td><td>${escHtml(fmtDMY(r.billDate))}</td><td>${escHtml(r.dsrId || '—')}</td></tr>`).join('') +
+        '</tbody></table></div>';
+    }
+  }
+  ovSimpleModal(inner);
+}
+async function searchTagEverywhere_(tagNo) {
+  const needle = normTag(tagNo);
+  if (!needle) return;
+  const localHits = allEntryRows_().filter(r => normTag(r.tagNo) === needle);
+  let dsrHits = [];
+  if (!localHits.length) dsrHits = await dsrTagFallbackSearch_(tagNo);
+  showTagSearchResultModal_(tagNo, localHits, dsrHits);
 }
 
 // ---- IndexedDB: 'meta' store holds the one cached full item list; 'images' store holds one blob per
@@ -999,7 +1066,19 @@ function applyFiltersAndRender() {
 }
 function renderGrid() {
   const grid = document.getElementById('grid'), moreWrap = document.getElementById('moreWrap');
-  if (!PH.items.length) { grid.innerHTML = '<div class="empty">No photos found for this filter.</div>'; moreWrap.innerHTML = ''; return; }
+  if (!PH.items.length) {
+    // v-add (BRO: "dsr lo unna old tag no unnavi matrame photos lo sold option lo ravali" — a Tag No
+    // sold before Stock Level existed won't be in this page's offline Photos data at all (no photo was
+    // ever captured there, since this page's "Sold" comes from Stock Level's own Sold sheet), so a
+    // search for one comes up empty here. Rather than a dead end, offer the same DSR Main file/Archive
+    // fallback search the Overview/Sold tabs use, so the old record is still findable (minus a photo).
+    const q = (document.getElementById('phQ').value || '').trim();
+    grid.innerHTML = '<div class="empty">No photos found for this filter.' +
+      (q ? `<br><button class="btn btn-sec" style="width:auto;padding:8px 16px;margin-top:10px;" onclick="searchTagEverywhere_('${escJs(q)}')">🔍 Search DSR Records for "${escHtml(q)}"</button>` : '') +
+      '</div>';
+    moreWrap.innerHTML = '';
+    return;
+  }
   grid.innerHTML = PH.items.slice(0, VISIBLE.count).map((r, i) => tileHtml(r, i)).join('');
   hydrateVisibleImages();
   moreWrap.innerHTML = (VISIBLE.count < PH.items.length)
