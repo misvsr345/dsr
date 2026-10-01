@@ -1434,9 +1434,16 @@ async function ovLoadLedger() {
   const rdrOn = (key, d) => rdrRowsOn(key, d).length;
   LEDGER_RDR_ROWS[dateVal] = ledgerData.rdr || [];
   // v-add (BRO: "opening closing sold return ila anni icharu, danto patu receiving kuda ivu" — the
-  // ledger table itself should also show, per row, how many pieces were RECEIVED that exact day
-  // (Entry Type = "Receiving Stock" only — Return already has its own column and is excluded here).
-  const receivingOn = (key, d) => entryRows.filter(r => r.entryType === 'Receiving Stock' && r.entryDate === d && groupKey_(r.productName, r.design) === key).reduce((s, r) => s + rowQty_(r), 0);
+  // ledger table itself should also show, per row, how many pieces were RECEIVED that exact day.
+  // v-fix (BRO: "opening stock coutn and closing stock count different undi ante day lo sale or
+  // receved, or return or outlet issue edo okati jarigi untundi kada bro. adi kuda clear ga teliyali
+  // kada" — this column used to count ONLY Entry Type = "Receiving Stock", but the actual
+  // Opening→Closing math above (receivingUpto, a few lines up) always counted "Receiving Stock" OR
+  // "Return" OR "Damage Receive" as inbound. That mismatch is exactly what made some days' Closing
+  // move with nothing visible to explain it — a customer Return or a Damage/Repair item coming back
+  // into stock bumped the real count but never showed in this column. Now this matches the real math
+  // exactly, so whatever moves Closing always shows up here.
+  const receivingOn = (key, d) => entryRows.filter(r => (r.entryType === 'Receiving Stock' || r.entryType === 'Return' || r.entryType === 'Damage Receive') && r.entryDate === d && groupKey_(r.productName, r.design) === key).reduce((s, r) => s + rowQty_(r), 0);
 
   // v-fix (BRO: "tag no ki lookup chesi count cheste saripotundi kada" — for TODAY, closing doesn't
   // need to be rebuilt from the whole transaction history at all: the live Stock snapshot already IS
@@ -1474,12 +1481,15 @@ async function ovLoadLedger() {
     s.opening += r.opening; s.closing += r.closing; s.receiving += r.receiving; s.sold += r.sold; s.ret += r.ret; s.outlet += r.outlet;
     return s;
   }, { opening: 0, closing: 0, receiving: 0, sold: 0, ret: 0, outlet: 0 });
-  let html = `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:center;">Opening</th><th style="text-align:center;">Closing</th><th style="text-align:center;">Receiving</th><th style="text-align:center;">Sold</th><th style="text-align:center;">Return</th><th style="text-align:center;">Outlet Issue</th></tr></thead><tbody>`;
+  // v-fix (BRO: "closgin option ni chivara pettu" — Closing moved to the last column, so the row
+  // reads left-to-right as the story of the day: Opening, then everything that moved it, then
+  // Closing as the final result.
+  let html = `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:center;">Opening</th><th style="text-align:center;">Receiving</th><th style="text-align:center;">Sold</th><th style="text-align:center;">Return</th><th style="text-align:center;">Outlet Issue</th><th style="text-align:center;">Closing</th></tr></thead><tbody>`;
   list.forEach(r => {
     const retCell = r.ret > 0 ? `<a href="#" onclick="ovShowRdrDetail('${escJs(r.key)}','${dateVal}','${escJs(properCase(r.product))}',${byDesign});return false;" style="color:#B03A2E;font-weight:800;text-decoration:underline;">${r.ret}</a>` : r.ret;
-    html += `<tr><td>${escHtml(properCase(r.product))}</td>${byDesign ? `<td>${escHtml(properCase(r.design) || '—')}</td>` : ''}<td style="text-align:center;">${r.opening}</td><td style="text-align:center;">${r.closing}</td><td style="text-align:center;">${r.receiving}</td><td style="text-align:center;">${r.sold}</td><td style="text-align:center;">${retCell}</td><td style="text-align:center;">${r.outlet}</td></tr>`;
+    html += `<tr><td>${escHtml(properCase(r.product))}</td>${byDesign ? `<td>${escHtml(properCase(r.design) || '—')}</td>` : ''}<td style="text-align:center;">${r.opening}</td><td style="text-align:center;">${r.receiving}</td><td style="text-align:center;">${r.sold}</td><td style="text-align:center;">${retCell}</td><td style="text-align:center;">${r.outlet}</td><td style="text-align:center;">${r.closing}</td></tr>`;
   });
-  html += `<tr style="font-weight:800;border-top:2px solid var(--gold);"><td>Total</td>${byDesign ? '<td></td>' : ''}<td style="text-align:center;">${tot.opening}</td><td style="text-align:center;">${tot.closing}</td><td style="text-align:center;">${tot.receiving}</td><td style="text-align:center;">${tot.sold}</td><td style="text-align:center;">${tot.ret}</td><td style="text-align:center;">${tot.outlet}</td></tr>`;
+  html += `<tr style="font-weight:800;border-top:2px solid var(--gold);"><td>Total</td>${byDesign ? '<td></td>' : ''}<td style="text-align:center;">${tot.opening}</td><td style="text-align:center;">${tot.receiving}</td><td style="text-align:center;">${tot.sold}</td><td style="text-align:center;">${tot.ret}</td><td style="text-align:center;">${tot.outlet}</td><td style="text-align:center;">${tot.closing}</td></tr>`;
   html += '</tbody></table></div>';
   body.innerHTML = html;
 }
