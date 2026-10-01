@@ -19,6 +19,7 @@
        identical. Overview stays the plain purple/gold brand look (it's the home tab); the other 4 each
        get their own softer tint so the app doesn't feel "oke color" everywhere. */
     --acc-sold:#C9A227; --acc-receiving:var(--green); --acc-rdr:var(--red); --acc-photos:#6B4FA0;
+    --acc-tag:#B0652E;
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:'Spectral',serif;}
@@ -221,6 +222,10 @@
     <button id="tabBtnSold" onclick="showTab('Sold')">📦 Sold</button>
     <button id="tabBtnRdr" onclick="showTab('Rdr')">↩️ RDR</button>
     <button id="tabBtnPhotos" onclick="showTab('Photos')">🖼️ Photos</button>
+    <!-- v-add (BRO: "anni tab lopala tag no serch vaddu photo tab tappa. photo tab pakkaana tag ani
+         tab pettu" — ONE dedicated Tag No search tab, right next to Photos, replacing the separate
+         search boxes that used to be scattered across Overview/Sold. -->
+    <button id="tabBtnTag" onclick="showTab('Tag')">🏷️ Tag</button>
   </div>
 
   <div id="tabPhotos" style="display:none;">
@@ -262,6 +267,23 @@
   <div id="moreWrap" class="note"></div>
   </div><!-- /#tabPhotos -->
 
+  <!-- v-add (BRO: "photo tab pakkaana tag ani tab pettu. adi cilck cheste tag details ravali. old and
+       new anni ravli. bill date customer name, anni ravali. dsr id kuda ravli. iff possibel bill no
+       kuda ravlai. sale, return, etc entair history ralvali tag no related data ravali." — one Tag No
+       search, showing EVERYTHING known about that tag: its current Stock Level status + photo, every
+       DSR Sale it was ever part of (old tag reused for a new item shows every sale, not just the
+       latest), every Outlet Issue, every Return/Damage/Repair — a full history, not just today's. -->
+  <div id="tabTag" style="display:none;">
+    <div class="tab-heading" style="border-bottom-color:var(--acc-tag);color:var(--acc-tag);">🏷️ Tag No Lookup</div>
+    <div class="card">
+      <div class="filters">
+        <div class="full"><label>Tag No</label><input type="text" id="tagLookupQ" placeholder="Enter Tag No..." autocomplete="off" onkeydown="if(event.key==='Enter'){loadTagLookup();}"></div>
+      </div>
+      <button class="btn" onclick="loadTagLookup()">🔍 Search</button>
+    </div>
+    <div id="tagLookupBody"></div>
+  </div><!-- /#tabTag -->
+
   <!-- v-add (BRO: "stock phtos lo ee part add chei... without login... only count matrame ravali" —
        counter-wise / product-wise / design-wise STOCK-IN-HAND count, no weight, no login. Reuses the
        exact same summary/counterDetail/counterDimOptions backend actions already built for the main
@@ -269,15 +291,6 @@
   <div id="tabOverview">
     <div id="ovTilesView">
       <div class="tab-heading">📊 Stock Overview</div>
-      <!-- v-add (BRO: "dsr mail file and achive lo unna tag no searach chesina... over view tab lo tag
-           no search option lo ravali" — searches Stock Level first, then falls back to DSR Main
-           file/Archive (older tags sold before Stock Level existed, not otherwise findable here). -->
-      <div class="card" style="padding:10px 12px;margin-bottom:10px;">
-        <div style="display:flex;gap:8px;">
-          <input type="text" id="ovTagSearch" placeholder="🔍 Search Tag No..." autocomplete="off" style="flex:1;" onkeydown="if(event.key==='Enter'){searchTagEverywhere_(this.value.trim());}">
-          <button class="btn" style="width:auto;padding:9px 18px;" onclick="searchTagEverywhere_(document.getElementById('ovTagSearch').value.trim())">Search</button>
-        </div>
-      </div>
       <div class="ov-grid" id="ovTiles"><div class="loading"><span class="spinner"></span>Loading...</div></div>
     </div>
     <div id="ovDetailView" style="display:none;">
@@ -345,16 +358,6 @@
         <div><label>End Date</label><input type="date" id="soldEnd"></div>
       </div>
       <button class="btn" onclick="loadSoldData()" style="margin-top:6px;">🔍 Show Sold Items</button>
-    </div>
-    <!-- v-add (BRO: "dsr mail file and achive lo unna tag no searach chesina sold tab lo... tag no
-         search option lo ravali" — a separate, all-time Tag No search (not limited by the
-         Today/Yesterday/Custom range above), falling back to DSR Main file/Archive for an older tag
-         that's not in Stock Level's own Sold sheet at all. -->
-    <div class="card" style="padding:10px 12px;">
-      <div style="display:flex;gap:8px;">
-        <input type="text" id="soldTagSearch" placeholder="🔍 Search Tag No (any date)..." autocomplete="off" style="flex:1;" onkeydown="if(event.key==='Enter'){searchTagEverywhere_(this.value.trim());}">
-        <button class="btn" style="width:auto;padding:9px 18px;" onclick="searchTagEverywhere_(document.getElementById('soldTagSearch').value.trim())">Search</button>
-      </div>
     </div>
     <div id="soldSummary" class="note"></div>
     <div id="soldBody" class="ov-table-wrap"></div>
@@ -529,8 +532,10 @@ function api(params) {
 // in Stock Level's own Sold sheet, so it's invisible to this page's offline Stock/Sold snapshot. This
 // live fallback (DSRBackend.gs's existing searchByTagNo action, Main file + Archive) catches those,
 // used by the Overview/Sold/Photos tabs below whenever a Tag No search comes up empty locally. No login
-// here, so results come back masked same as the rest of this no-login page already is — Tag No/
-// Product/Employee/Date/DSR ID/Bill No/Payment Status, no photo, no Design, no mobile/address.
+// here, so results still come back masked same as the rest of this no-login page already is — mobile
+// number and address stay hidden — but DO include Tag No/Product/Design/Employee/Date/DSR ID/Bill No/
+// Payment Status AND Photo (BRO: "aa tag no pai click cehste, details ralai. with phto"). Only
+// customerName/mobile/address are left out of what this modal actually renders.
 async function dsrTagFallbackSearch_(tagNo) {
   try {
     const res = await dsrApi({ action: 'searchByTagNo', tagNo });
@@ -538,25 +543,60 @@ async function dsrTagFallbackSearch_(tagNo) {
     return res.results || [];
   } catch (e) { return []; }
 }
+// v-fix (BRO: "aa tag no pai click cehste, details ralai. with phto" — the Tag No in each result row
+// is now a clickable link, opening a photo + full-detail popup (DSRBackend.gs now sends photoUrl back
+// for a DSR-fallback hit too, not just an admin/logged-in caller — see dsrBuildSearchEntry_).
+let TAG_SEARCH_LOCAL_HITS = [];
+let TAG_SEARCH_DSR_HITS = [];
 function showTagSearchResultModal_(tagNo, localHits, dsrHits) {
+  TAG_SEARCH_LOCAL_HITS = localHits;
+  TAG_SEARCH_DSR_HITS = dsrHits;
   let inner = `<div style="font-weight:800;font-size:15px;margin-bottom:4px;">🔍 Tag No — ${escHtml(tagNo)}</div>`;
   if (!localHits.length && !dsrHits.length) {
     inner += '<div class="empty" style="padding:20px 0;">No match found — neither in Stock Level nor DSR records.</div>';
   } else {
     if (localHits.length) {
-      inner += `<div class="note" style="text-align:left;padding:6px 0 4px;font-weight:800;">In Stock Level:</div>
+      inner += `<div class="note" style="text-align:left;padding:6px 0 4px;font-weight:800;">In Stock Level (tap Tag No for photo):</div>
         <div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Tag No</th><th>Product</th><th>Design</th><th>Counter</th><th>Status</th></tr></thead><tbody>` +
-        localHits.map(r => `<tr><td><b>${escHtml(r.tagNo || '—')}</b></td><td>${escHtml(properCase(r.productName) || '—')}</td><td>${escHtml(properCase(r.design) || '—')}</td><td>${escHtml(rowCounter_(r))}</td><td>${r.status === 'sold' ? 'Sold' : 'In Stock'}</td></tr>`).join('') +
+        localHits.map((r, i) => `<tr><td><a href="#" onclick="showTagDetailWithPhoto_('local',${i});return false;" style="color:var(--purple-mid);font-weight:800;text-decoration:underline;">${escHtml(r.tagNo || '—')}</a></td><td>${escHtml(properCase(r.productName) || '—')}</td><td>${escHtml(properCase(r.design) || '—')}</td><td>${escHtml(rowCounter_(r))}</td><td>${r.status === 'sold' ? 'Sold' : 'In Stock'}</td></tr>`).join('') +
         '</tbody></table></div>';
     }
     if (dsrHits.length) {
-      inner += `<div class="note" style="text-align:left;padding:10px 0 4px;font-weight:800;">In DSR Records (older — not in Stock Level):</div>
+      inner += `<div class="note" style="text-align:left;padding:10px 0 4px;font-weight:800;">In DSR Records (older — not in Stock Level; tap Tag No for photo):</div>
         <div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Tag No</th><th>Product</th><th>Employee</th><th>Date</th><th>DSR ID</th></tr></thead><tbody>` +
-        dsrHits.map(r => `<tr><td><b>${escHtml(r.tagNo || '—')}</b></td><td>${escHtml(properCase(r.productName) || '—')}</td><td>${escHtml(properCase(r.employeeName) || '—')}</td><td>${escHtml(fmtDMY(r.billDate))}</td><td>${escHtml(r.dsrId || '—')}</td></tr>`).join('') +
+        dsrHits.map((r, i) => `<tr><td><a href="#" onclick="showTagDetailWithPhoto_('dsr',${i});return false;" style="color:var(--purple-mid);font-weight:800;text-decoration:underline;">${escHtml(r.tagNo || '—')}</a></td><td>${escHtml(properCase(r.productName) || '—')}</td><td>${escHtml(properCase(r.employeeName) || '—')}</td><td>${escHtml(fmtDMY(r.billDate))}</td><td>${escHtml(r.dsrId || '—')}</td></tr>`).join('') +
         '</tbody></table></div>';
     }
   }
   ovSimpleModal(inner);
+}
+// Photo + full-detail popup for a clicked Tag No from either results block above — same cache-first
+// resolveImgSrc() the rest of this page already uses, so a photo already downloaded once opens
+// instantly offline too.
+async function showTagDetailWithPhoto_(kind, idx) {
+  const r = kind === 'local' ? TAG_SEARCH_LOCAL_HITS[idx] : TAG_SEARCH_DSR_HITS[idx];
+  if (!r) return;
+  const photo = kind === 'local' ? r.photo : r.photoUrl;
+  const rows = kind === 'local'
+    ? [['Tag No', r.tagNo], ['Product', properCase(r.productName)], ['Design', properCase(r.design) || '—'], ['Counter', rowCounter_(r)], ['Weight', fmtWt(r.weight) ? fmtWt(r.weight) + ' gm' : '—'], ['Status', r.status === 'sold' ? 'Sold' : 'In Stock']]
+    : [['Tag No', r.tagNo], ['Product', properCase(r.productName)], ['Design', properCase(r.design) || '—'], ['Weight', fmtWt(r.weight) ? fmtWt(r.weight) + ' gm' : '—'], ['Employee', properCase(r.employeeName) || '—'], ['Date', fmtDMY(r.billDate)], ['DSR ID', r.dsrId || '—'], ['Bill No', r.billNo || '—'], ['Payment Status', r.paymentStatus || '—']];
+  const old = document.getElementById('tagDetailModal'); if (old) old.remove();
+  const div = document.createElement('div');
+  div.id = 'tagDetailModal';
+  div.className = 'overlay';
+  div.innerHTML = `<div class="stage-box" style="max-width:520px;max-height:85vh;background:#fff;">
+      <button class="close-x" onclick="document.getElementById('tagDetailModal').remove()">✕</button>
+      <div class="stage" style="height:44vh;background:#F1E8D6;"><img id="tagDetailImg" src="" alt="Loading..." style="width:100%;height:100%;object-fit:contain;"></div>
+      <div class="info-box" style="max-height:40vh;">
+        <table class="info">${rows.map(([lbl, val]) => `<tr><td class="lbl">${escHtml(lbl)}</td><td class="val">${escHtml(val || '—')}</td></tr>`).join('')}</table>
+      </div>
+    </div>`;
+  document.body.appendChild(div);
+  div.addEventListener('click', e => { if (e.target === div) div.remove(); });
+  const src = photo ? await resolveImgSrc(photo) : null;
+  const img = document.getElementById('tagDetailImg');
+  if (!img) return;
+  if (src) img.src = src; else img.alt = '📷 No photo available';
 }
 async function searchTagEverywhere_(tagNo) {
   const needle = normTag(tagNo);
@@ -1305,7 +1345,7 @@ function infoHtml(r) {
 // above: doesn't touch ALL_ITEMS or any existing function.
 // ============================================================
 function showTab(name) {
-  ['Photos', 'Overview', 'Sold', 'Receiving', 'Rdr'].forEach(t => {
+  ['Photos', 'Overview', 'Sold', 'Receiving', 'Rdr', 'Tag'].forEach(t => {
     document.getElementById('tab' + t).style.display = (t === name) ? '' : 'none';
     document.getElementById('tabBtn' + t).classList.toggle('active', t === name);
   });
