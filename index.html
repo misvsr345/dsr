@@ -535,31 +535,29 @@ function api(params) {
 // ravali. dsr id kuda ravli. iff possibel bill no kuda ravlai. sale, return, etc entair history
 // ralvali tag no related data ravali." — ONE dedicated Tag No lookup tab (not scattered search boxes):
 // current Stock Level status + photo, PLUS every DSR Sale this tag was ever part of (a reused tag
-// shows every sale, old and new — DSRBackend.gs's searchByTagNo already scans Main file + Archive),
-// PLUS every Outlet Issue and Return/Damage/Repair, as one combined history sorted newest first.
-// DSRBackend.gs now sends Photo back for this even without login (see dsrBuildSearchEntry_) — mobile
-// number and address are the only fields still held back.
-async function dsrTagFallbackSearch_(tagNo) {
-  try {
-    const res = await dsrApi({ action: 'searchByTagNo', tagNo });
-    if (!res || res.status !== 'success') return [];
-    return res.results || [];
-  } catch (e) { return []; }
-}
+// shows every sale, old and new), PLUS every Outlet Issue and Return/Damage/Repair, as one combined
+// history sorted newest first. v-fix (BRO: "total dsr and stock level unna all data offline lo local
+// staorege lo cache laga save avali. so offlien lo kuda work chestundi." — this used to make a live
+// searchByTagNo call on every single search; now it reads straight from DSR_SNAPSHOT, the same
+// IndexedDB-cached bulk export Stock/Sold already use, so a lookup works fully offline once the app has
+// been opened online at least once, and is instant even when online (no per-search network round trip).
 async function loadTagLookup() {
   const tagNoRaw = document.getElementById('tagLookupQ').value.trim();
   const body = document.getElementById('tagLookupBody');
-  if (!tagNoRaw) { body.innerHTML = ''; return; }
+  if (!tagNoRaw) { body.innerHTML = ''; TAG_LOOKUP_PHOTO = ''; return; }
   const needle = normTag(tagNoRaw);
+  if (!DSR_SNAPSHOT.length && !STOCK_SNAPSHOT.length && !SOLD_SNAPSHOT.length) {
+    body.innerHTML = (navigator.onLine
+      ? '<div class="loading"><span class="spinner"></span>Loading...</div>'
+      : '<div class="empty">No offline data saved yet — connect once to load.</div>') + reloadBtnHtml();
+    return;
+  }
   body.innerHTML = '<div class="loading"><span class="spinner"></span>Searching...</div>';
 
   const localHits = allEntryRows_().filter(r => normTag(r.tagNo) === needle);
-  let dsrHits = [], ledgerData = { rdr: [], outletIssues: [] };
-  try {
-    const results = await Promise.all([dsrTagFallbackSearch_(tagNoRaw), fetchLedgerUpto_(todayStr_ph())]);
-    dsrHits = results[0];
-    ledgerData = results[1] || ledgerData;
-  } catch (e) {}
+  const dsrHits = DSR_SNAPSHOT.filter(r => normTag(r.tagNo) === needle);
+  let ledgerData = { rdr: [], outletIssues: [] };
+  try { ledgerData = await fetchLedgerUpto_(todayStr_ph()); } catch (e) {}
   // the person may have changed the search box while the fetch above was in flight
   if (normTag(document.getElementById('tagLookupQ').value) !== needle) return;
 
@@ -568,20 +566,51 @@ async function loadTagLookup() {
 
   if (!localHits.length && !dsrHits.length && !rdrHits.length && !outletHits.length) {
     body.innerHTML = '<div class="empty">No record found for this Tag No — check it and try again.</div>';
+    TAG_LOOKUP_PHOTO = '';
     return;
   }
 
-  let html = '';
   const cur = localHits[0];
+  // Most recent DSR sale of this tag (if any) — fills in product/design/weight/photo/customer for OLD
+  // tags that were sold before Stock Level existed (so there's no Stock/Sold snapshot row at all), and
+  // is also the source for "who it was last sold to" even when the tag IS currently in Stock/Sold.
+  const latestSale = dsrHits.slice().sort((a, b) => new Date(b.billDate || 0) - new Date(a.billDate || 0))[0];
+
+  // Merge product/design/weight/photo across Stock Level (preferred, since it's the live master) and the
+  // DSR sale record (fallback for old tags with no Stock Level row) — BRO: "wait and disign, product all
+  // data ravali" (weight, design, product — all of it should show, whichever source has it).
+  const productName = (cur && cur.productName) || (latestSale && latestSale.productName) || '';
+  const design = (cur && cur.design) || (latestSale && latestSale.design) || '';
+  const weight = (cur && cur.weight) || (latestSale && latestSale.weight) || '';
+  const photo = (cur && cur.photo) || (latestSale && latestSale.photoUrl) || '';
+  TAG_LOOKUP_PHOTO = photo;
+
+  // Counter — BRO: "counter name kuda ravali. counter name product batti stock level sheet nundi
+  // tisukovali" (counter must come from the Stock Level sheet). If this exact tag is still in the
+  // Stock/Sold snapshot, use its counter directly; otherwise (an old tag with no Stock Level row left)
+  // best-guess the counter from any OTHER Stock Level row of the same product.
+  let counter = '';
   if (cur) {
-    html += `<div class="card" style="display:flex;gap:12px;align-items:center;">
-      <div style="width:84px;height:84px;border-radius:10px;overflow:hidden;flex-shrink:0;background:#F1E8D6;"><img id="tagLookupImg" style="width:100%;height:100%;object-fit:cover;" alt=""></div>
-      <div>
-        <div style="font-weight:800;font-size:15px;color:var(--purple);">${escHtml(properCase(cur.productName) || '—')}${cur.design ? ' — ' + escHtml(properCase(cur.design)) : ''}</div>
-        <div class="note" style="text-align:left;padding:4px 0 0;">Counter: <b>${escHtml(rowCounter_(cur))}</b> &nbsp;·&nbsp; Status: <b>${cur.status === 'sold' ? 'Sold' : 'In Stock'}</b>${cur.weight ? ' &nbsp;·&nbsp; ' + fmtWt(cur.weight) + ' gm' : ''}</div>
-      </div>
-    </div>`;
+    counter = rowCounter_(cur);
+  } else if (productName) {
+    const pn = String(productName).trim().toLowerCase();
+    const sameProd = STOCK_SNAPSHOT.find(r => String(r.productName || '').trim().toLowerCase() === pn)
+      || SOLD_SNAPSHOT.find(r => String(r.productName || '').trim().toLowerCase() === pn);
+    if (sameProd) counter = rowCounter_(sameProd);
   }
+
+  const statusLabel = cur ? (cur.status === 'sold' ? 'Sold' : 'In Stock') : (latestSale ? 'Sold' : '—');
+
+  let html = `<div class="card">
+    <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:800;font-size:15px;color:var(--purple);">${escHtml(properCase(productName) || '—')}${design ? ' — ' + escHtml(properCase(design)) : ''}</div>
+        <div class="note" style="text-align:left;padding:4px 0 0;">Counter: <b>${escHtml(counter || '—')}</b> &nbsp;·&nbsp; Status: <b>${escHtml(statusLabel)}</b>${weight ? ' &nbsp;·&nbsp; ' + fmtWt(weight) + ' gm' : ''}</div>
+        ${latestSale && latestSale.customerName ? `<div class="note" style="text-align:left;padding:2px 0 0;">Customer: <b>${escHtml(latestSale.customerName)}</b></div>` : ''}
+      </div>
+      ${photo ? `<button class="btn btn-sec" style="width:auto;padding:6px 14px;flex-shrink:0;" onclick="viewTagPhoto()">📷 View Photo</button>` : ''}
+    </div>
+  </div>`;
 
   const events = [];
   dsrHits.forEach(r => events.push({ date: r.billDate, kind: 'sale', data: r }));
@@ -608,9 +637,27 @@ async function loadTagLookup() {
   }
 
   body.innerHTML = html;
-  if (cur && cur.photo) {
-    resolveImgSrc(cur.photo).then(src => { const img = document.getElementById('tagLookupImg'); if (img && src) img.src = src; });
-  }
+}
+// BRO: "kakapote direct open vaddu. view button ivu. adi click chste, photo ravlai" — the photo is never
+// auto-loaded inline; a "View Photo" button sits next to the Current Status card, and only on tap does
+// this fetch/show it, same modal pattern as the Sold tab's viewSoldPhoto().
+let TAG_LOOKUP_PHOTO = '';
+async function viewTagPhoto() {
+  if (!TAG_LOOKUP_PHOTO) return;
+  const old = document.getElementById('tagPhotoModal'); if (old) old.remove();
+  const div = document.createElement('div');
+  div.id = 'tagPhotoModal';
+  div.className = 'overlay';
+  div.innerHTML = `<div class="stage-box" style="max-width:520px;max-height:80vh;">
+      <button class="close-x" onclick="document.getElementById('tagPhotoModal').remove()">✕</button>
+      <div class="stage" style="height:70vh;"><img id="tagPhotoImg" src="" alt="Loading..." style="width:100%;height:100%;object-fit:contain;"></div>
+    </div>`;
+  document.body.appendChild(div);
+  div.addEventListener('click', e => { if (e.target === div) div.remove(); });
+  const src = await resolveImgSrc(TAG_LOOKUP_PHOTO);
+  const img = document.getElementById('tagPhotoImg');
+  if (!img) return;
+  if (src) img.src = src; else img.alt = '📷 Not downloaded yet — connect once to view this photo offline';
 }
 
 // ---- IndexedDB: 'meta' store holds the one cached full item list; 'images' store holds one blob per
@@ -745,6 +792,11 @@ window.addEventListener('offline', updateOnlineBanner);
 // in-memory arrays — instant, and works with zero internet once cached at least once.
 let STOCK_SNAPSHOT = []; // every in-hand Stock row, all counters (powers the Overview tab)
 let SOLD_SNAPSHOT = [];  // every Sold row, all time (powers the Sold Data tab)
+// v-add (BRO: "total dsr and stock level unna all data offline lo local staorege lo cache laga save
+// avali. so offlien lo kuda work chestundi." — every Gold/Diamond DSR Sale row, Main file + Archive,
+// masked (no Mobile/Address) — powers the Tag tab's "entire history" lookup fully offline, same as
+// Stock/Sold above, instead of a live searchByTagNo call every single search.
+let DSR_SNAPSHOT = [];
 async function fetchStockSnapshotFull() {
   const res = await api({ action: 'listStock', counter: '', q: '', limit: 100000 });
   if (!res || !res.ok) throw new Error((res && res.error) || 'Could not load stock.');
@@ -753,6 +805,11 @@ async function fetchStockSnapshotFull() {
 async function fetchSoldSnapshotFull() {
   const res = await api({ action: 'dailySales', start: '2000-01-01', end: todayStr_ph() });
   if (!res || !res.ok) throw new Error((res && res.error) || 'Could not load sold data.');
+  return res.rows || [];
+}
+async function fetchDsrSnapshotFull() {
+  const res = await dsrApi({ action: 'dsrFullSnapshot' });
+  if (!res || !res.ok) throw new Error((res && res.message) || 'Could not load DSR data.');
   return res.rows || [];
 }
 
@@ -796,11 +853,13 @@ function reloadCurrentTab() {
 async function refreshOverviewSnapshots() {
   if (!navigator.onLine) return;
   try {
-    const [stockRows, soldRows] = await Promise.all([fetchStockSnapshotFull(), fetchSoldSnapshotFull()]);
+    const [stockRows, soldRows, dsrRows] = await Promise.all([fetchStockSnapshotFull(), fetchSoldSnapshotFull(), fetchDsrSnapshotFull().catch(() => DSR_SNAPSHOT)]);
     STOCK_SNAPSHOT = stockRows;
     SOLD_SNAPSHOT = soldRows;
+    DSR_SNAPSHOT = dsrRows;
     idbSet('meta', 'stockSnapshot', { rows: stockRows, fetchedAt: Date.now() });
     idbSet('meta', 'soldSnapshot', { rows: soldRows, fetchedAt: Date.now() });
+    idbSet('meta', 'dsrSnapshot', { rows: dsrRows, fetchedAt: Date.now() });
     // If Overview/Sold Data is the tab currently open, refresh what's already on screen with the new data.
     if (document.getElementById('tabOverview').style.display !== 'none') {
       if (document.getElementById('ovLedgerView').style.display !== 'none') { ovLoadLedger(); }
@@ -810,6 +869,7 @@ async function refreshOverviewSnapshots() {
     if (document.getElementById('tabSold').style.display !== 'none') loadSoldData();
     if (document.getElementById('tabReceiving').style.display !== 'none') loadReceivingData();
     if (document.getElementById('tabRdr').style.display !== 'none') loadRdrData();
+    if (document.getElementById('tabTag').style.display !== 'none' && document.getElementById('tagLookupQ').value.trim()) loadTagLookup();
   } catch (e) { /* offline or backend error — whatever was cached earlier (if any) stays as-is */ }
 }
 
@@ -873,7 +933,10 @@ async function headerRefreshSync() {
   reloadCurrentTab();
   let ok = true;
   try {
-    await Promise.all([refreshSnapshot(), refreshOverviewSnapshots()]);
+    // v-fix (BRO: "sync buton click cheste motham ravali" — Sync must also force-refresh today's
+    // Ledger (Outlet Issue + Return/Damage/Repair), not just Photos/Stock/Sold/DSR; refreshLedgerUpto_
+    // already re-renders the Ledger view if it's the tab currently open.
+    await Promise.all([refreshSnapshot(), refreshOverviewSnapshots(), refreshLedgerUpto_(todayStr_ph())]);
   } catch (e) {
     ok = false;
   }
@@ -903,6 +966,8 @@ async function initApp() {
   if (cachedStock && cachedStock.rows) STOCK_SNAPSHOT = cachedStock.rows;
   const cachedSold = await idbGet('meta', 'soldSnapshot');
   if (cachedSold && cachedSold.rows) SOLD_SNAPSHOT = cachedSold.rows;
+  const cachedDsr = await idbGet('meta', 'dsrSnapshot');
+  if (cachedDsr && cachedDsr.rows) DSR_SNAPSHOT = cachedDsr.rows;
   refreshOverviewSnapshots();
 
   // BRO: "stock phto file open chesina ventane overview ravali" — Overview is now the tab shown the
