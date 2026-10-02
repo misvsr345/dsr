@@ -180,20 +180,6 @@
   table.ov-table td{font-weight:400;color:var(--text);}
   .ov-table-wrap{overflow-x:auto;}
 
-  /* v-add (BRO's Opening/Closing Ledger, opened by tapping the counter name in the Overview
-     drill-down). "ee part lo backend white pettu" — card background is plain white now (the earlier
-     pink/purple gradient card is gone). "table lu addamuga and niluvuga all chell ki board ivu" —
-     every cell gets a border on all 4 sides (a real grid, not just an underline). "table chutu boarder
-     ki thik border ivu" — a thick gold border wraps the table itself. */
-  .ov-ledger-card{
-    background:#fff;
-    border:2px solid var(--gold);
-  }
-  .ov-ledger-card #ovLedgerTitle{color:var(--purple);}
-  .ov-ledger-card input[type=date]{
-    max-width:170px;background:#fff;border:1.5px solid var(--gold);border-radius:8px;
-    padding:8px 10px;font-weight:700;color:var(--purple);
-  }
   table.ledger-table{width:100%;border-collapse:collapse;font-size:12px;border:3px solid var(--gold);}
   table.ledger-table th,table.ledger-table td{padding:7px 5px;border:1px solid var(--gold);text-align:left;white-space:nowrap;}
   table.ledger-table th{font-size:9.5px;text-transform:uppercase;font-weight:800;color:#fff;background:var(--purple);}
@@ -298,14 +284,9 @@
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
           <div style="font-weight:800;color:var(--purple);font-size:15px;" id="ovDetailTitle"></div>
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-            <!-- v-add (BRO: "ee image lo ledge ani oka chinna option ivu. apudu ledge data vastundi" —
-                 a small, explicit "Ledger" button instead of relying on tapping the title text). -->
-            <button class="btn btn-sec" style="width:auto;padding:6px 14px;font-size:12px;" onclick="ovOpenLedgerFromTitle()">📒 Ledger</button>
-            <label style="display:flex;align-items:center;gap:6px;margin:0;text-transform:none;font-size:12.5px;color:var(--text);">
-              <input type="checkbox" id="ovByDesign" onchange="ovLoadDetail()" style="width:16px;height:16px;margin:0;"> Design-wise
-            </label>
-          </div>
+          <label style="display:flex;align-items:center;gap:6px;margin:0;text-transform:none;font-size:12.5px;color:var(--text);">
+            <input type="checkbox" id="ovByDesign" onchange="ovLoadDetail()" style="width:16px;height:16px;margin:0;"> Design-wise
+          </label>
         </div>
         <div class="filters" id="ovDimFilters"></div>
         <div class="filters">
@@ -321,19 +302,6 @@
         <div id="ovDetailBody"><div class="loading"><span class="spinner"></span>Loading...</div></div>
       </div>
     </div>
-
-    <!-- v-fix (BRO: "ikada date filter remove chei. sold ki recieving ki annitiki tabs unnai kada
-         akkada chusukuntaru, so ikkada only balance data matrame ivu" — Receiving/Sold/RDR/Outlet
-         Issue already have their own tabs elsewhere in this app for that day-by-day detail, so this
-         Ledger view no longer needs a date picker or those transaction columns at all — it's just the
-         running balance (Opening/Closing) per product, always as of today.) -->
-    <div id="ovLedgerView" style="display:none;">
-      <button class="btn btn-sec" style="width:auto;padding:9px 16px;margin-bottom:10px;" onclick="ovBackToDetailFromLedger()">← Back</button>
-      <div class="card ov-ledger-card">
-        <div style="font-weight:800;font-size:14.5px;margin-bottom:10px;" id="ovLedgerTitle"></div>
-        <div id="ovLedgerBody"><div class="loading" style="color:var(--dmuted);"><span class="spinner"></span>Loading...</div></div>
-      </div>
-    </div><!-- /#ovLedgerView -->
   </div><!-- /#tabOverview -->
 
   <!-- v-add (BRO: "dsr entered data kuda ravali, date wise... tag no and product and design detail
@@ -848,9 +816,7 @@ function reloadCurrentTab() {
     return;
   }
   if (tabOverviewOpen) {
-    if (document.getElementById('ovLedgerView').style.display !== 'none') {
-      document.getElementById('ovLedgerBody').innerHTML = '<div class="loading" style="color:var(--dmuted);"><span class="spinner"></span>Loading...</div>';
-    } else if (OV.curCounter) {
+    if (OV.curCounter) {
       document.getElementById('ovDetailBody').innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
     } else {
       document.getElementById('ovTiles').innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
@@ -880,8 +846,7 @@ async function refreshOverviewSnapshots() {
     idbSet('meta', 'dsrSnapshot', { rows: dsrRows, fetchedAt: Date.now() });
     // If Overview/Sold Data is the tab currently open, refresh what's already on screen with the new data.
     if (document.getElementById('tabOverview').style.display !== 'none') {
-      if (document.getElementById('ovLedgerView').style.display !== 'none') { ovLoadLedger(); }
-      else if (OV.curCounter) { ovLoadDimOptions(); ovLoadDetail(); }
+      if (OV.curCounter) { ovLoadDimOptions(); ovLoadDetail(); }
       else { ovLoadTiles(); }
     }
     if (document.getElementById('tabSold').style.display !== 'none') loadSoldData();
@@ -1436,8 +1401,7 @@ function showTab(name) {
   // Cheap, synchronous, reads only the already-cached arrays — safe to re-render every time the tab
   // is opened, so it's always showing the latest data that's been synced.
   if (name === 'Overview') {
-    if (document.getElementById('ovLedgerView').style.display !== 'none') { ovLoadLedger(); }
-    else if (OV.curCounter) { ovLoadDimOptions(); ovLoadDetail(); }
+    if (OV.curCounter) { ovLoadDimOptions(); ovLoadDetail(); }
     else { ovLoadTiles(); }
   }
   if (name === 'Sold') loadSoldData();
@@ -1492,7 +1456,6 @@ function ovOpenCounter(counter) {
   OV.curCounter = counter;
   document.getElementById('ovTilesView').style.display = 'none';
   document.getElementById('ovDetailView').style.display = '';
-  document.getElementById('ovLedgerView').style.display = 'none';
   document.getElementById('ovDetailTitle').textContent = counter;
   document.getElementById('ovByDesign').checked = false;
   document.getElementById('ovWtRangeOn').checked = false;
@@ -1640,11 +1603,6 @@ async function refreshLedgerUpto_(uptoDate) {
     const data = { sales: res.sales || [], outletIssues: res.outletIssues || [], rdr: res.rdr || [] };
     LEDGER_CACHE[uptoDate] = data;
     idbSet('meta', LEDGER_IDB_PREFIX + uptoDate, data);
-    // Still looking at the Ledger (always today's balance now, no date picker)? Re-render so the
-    // screen catches up to the fresh data.
-    if (document.getElementById('ovLedgerView').style.display !== 'none' && uptoDate === todayStr_ph()) {
-      ovLoadLedger();
-    }
   } catch (e) {}
 }
 // v-add (BRO's Return/Damage/Repair feature — "stock phto lo kuda option ivu") — a tiny reusable popup,
@@ -1662,58 +1620,11 @@ function ovSimpleModal(innerHtml) {
   document.body.appendChild(div);
   div.addEventListener('click', e => { if (e.target === div) div.remove(); });
 }
-function ovOpenLedgerFromTitle() {
-  if (!OV.curCounter) return;
-  document.getElementById('ovDetailView').style.display = 'none';
-  document.getElementById('ovLedgerView').style.display = '';
-  document.getElementById('ovLedgerTitle').textContent = OV.curCounter + ' — Stock Count';
-  ovLoadLedger();
-}
-function ovBackToDetailFromLedger() {
-  document.getElementById('ovLedgerView').style.display = 'none';
-  document.getElementById('ovDetailView').style.display = '';
-}
 // v-fix (BRO: "ikada date filter remove chei. sold ki recieving ki annitiki tabs unnai kada akkada
 // chusukuntaru, so ikkada only balance data matrame ivu" — Receiving/Sold/Return/Damage/Repair/Outlet
 // Issue already have their own dedicated tabs elsewhere in this app, so this Ledger view is no longer
 // a day-by-day transaction breakdown — it's just the running stock BALANCE per product, always as of
 // today, with no date to pick.
-// v-fix (BRO: "opening closing kuda vaddu. only count matrame ivu. opening closing heading vaddu. nly
-// count" — no Opening/Closing split at all any more, just today's live physical Stock count per
-// product. No DSR/ledgerData fetch needed any more either — this is a plain, fast, offline count
-// straight from STOCK_SNAPSHOT.)
-function ovLoadLedger() {
-  const body = document.getElementById('ovLedgerBody');
-  const counter = OV.curCounter;
-  if (!counter) return;
-  const byDesign = document.getElementById('ovByDesign').checked;
-  if (!STOCK_SNAPSHOT.length && !SOLD_SNAPSHOT.length) {
-    body.innerHTML = '<div class="empty" style="color:var(--dmuted);">No offline data saved yet — connect once to load.</div>' + reloadBtnHtml();
-    return;
-  }
-
-  const groupKey_ = (productName, design) => byDesign ? (productName + '|' + String(design || '').trim()) : productName;
-  const groups = {};
-  STOCK_SNAPSHOT.filter(r => rowCounter_(r) === counter).forEach(r => {
-    const key = groupKey_(r.productName, r.design);
-    if (!groups[key]) groups[key] = { product: r.productName, design: byDesign ? String(r.design || '').trim() : '', count: 0 };
-    groups[key].count += rowQty_(r);
-  });
-
-  const list = Object.values(groups).sort((a, b) => a.product.localeCompare(b.product, undefined, { numeric: true, sensitivity: 'base' }) || a.design.localeCompare(b.design, undefined, { numeric: true, sensitivity: 'base' }));
-
-  if (!list.length) { body.innerHTML = '<div class="empty" style="color:var(--dmuted);">No stock for this counter yet.</div>'; return; }
-
-  const total = list.reduce((s, r) => s + r.count, 0);
-
-  let html = `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:center;">Count</th></tr></thead><tbody>`;
-  list.forEach(r => {
-    html += `<tr><td>${escHtml(properCase(r.product))}</td>${byDesign ? `<td>${escHtml(properCase(r.design) || '—')}</td>` : ''}<td style="text-align:center;">${r.count}</td></tr>`;
-  });
-  html += `<tr style="font-weight:800;border-top:2px solid var(--gold);"><td>Total</td>${byDesign ? '<td></td>' : ''}<td style="text-align:center;">${total}</td></tr>`;
-  html += '</tbody></table></div>';
-  body.innerHTML = html;
-}
 
 
 // v-add (BRO: "stock phto file lo opening closing sold return ila anni icharu, danto patu receiving
