@@ -240,8 +240,8 @@
       </div>
     </div>
     <div class="filters" id="phWtRangeBox" style="display:none;">
-      <div><label>From Wt</label><select id="phWtFrom" onchange="applyFiltersAndRender()"><option value="">Any</option></select></div>
-      <div><label>To Wt</label><select id="phWtTo" onchange="applyFiltersAndRender()"><option value="">Any</option></select></div>
+      <div><label>From Wt</label><select id="phWtFrom" onchange="applyFiltersAndRender()"><option>0</option></select></div>
+      <div><label>To Wt</label><select id="phWtTo" onchange="applyFiltersAndRender()"><option>100</option></select></div>
     </div>
     <div class="filters">
       <div class="full"><label>Search</label><input type="text" id="phQ" placeholder="Tag No or Product name..." autocomplete="off" oninput="applyFiltersAndRender()" onkeydown="if(event.key==='Enter')applyFiltersAndRender()"></div>
@@ -296,8 +296,8 @@
           </div>
         </div>
         <div class="filters" id="ovWtRangeBox" style="display:none;">
-          <div><label>From Wt</label><select id="ovWtFrom" onchange="ovLoadDetail()"><option value="">Any</option></select></div>
-          <div><label>To Wt</label><select id="ovWtTo" onchange="ovLoadDetail()"><option value="">Any</option></select></div>
+          <div><label>From Wt</label><select id="ovWtFrom" onchange="ovLoadDetail()"><option>0</option></select></div>
+          <div><label>To Wt</label><select id="ovWtTo" onchange="ovLoadDetail()"><option>100</option></select></div>
         </div>
         <div id="ovDetailBody"><div class="loading"><span class="spinner"></span>Loading...</div></div>
       </div>
@@ -1057,9 +1057,13 @@ function renderFiltersFromData() {
 // aa rendu wt lopu unnavi matrame ravali") — BRO went back and forth (manual entry, then back to a
 // dropdown): final is "WT DROP DOWN IVU. 0 TO 100 IVU" — a fixed 0–100 dropdown (whole numbers) in BOTH
 // From and To; the actual filtering still just checks From <= item weight <= To, so an item's real
-// (decimal) weight matches fine against these whole-number bounds. ----
+// (decimal) weight matches fine against these whole-number bounds.
+// v-fix (BRO: "weiht drop down lo any ani kakunda 0 tho start chei. last weight lo end lo undali" — no
+// "Any" placeholder any more; the list is just plain numbers 0 through 100. From defaults to 0 (the
+// first/lowest) and To defaults to 100 (the last/highest) so the filter still covers the full range
+// out of the box — same effective behavior "Any" used to give, just without that extra option.) ----
 const WT_RANGE_OPTIONS_HTML = (() => {
-  let html = '<option value="">Any</option>';
+  let html = '';
   for (let i = 0; i <= 100; i++) html += `<option>${i}</option>`;
   return html;
 })();
@@ -1068,11 +1072,15 @@ function populateWtRangeOptions() {
   if (!fromSel || !toSel) return;
   const keepFrom = fromSel.value, keepTo = toSel.value;
   fromSel.innerHTML = WT_RANGE_OPTIONS_HTML; toSel.innerHTML = WT_RANGE_OPTIONS_HTML;
-  fromSel.value = keepFrom; toSel.value = keepTo;
+  fromSel.value = keepFrom || '0'; toSel.value = keepTo || '100';
   // v-add (BRO: "wt kuda ivu... adi click cheste from and to wt box lu ravali" — Overview's own Weight
   // Range filter, same fixed 0–100 list as the Photos tab's).
   const ovFromSel = document.getElementById('ovWtFrom'), ovToSel = document.getElementById('ovWtTo');
-  if (ovFromSel && ovToSel) { ovFromSel.innerHTML = WT_RANGE_OPTIONS_HTML; ovToSel.innerHTML = WT_RANGE_OPTIONS_HTML; }
+  if (ovFromSel && ovToSel) {
+    const ovKeepFrom = ovFromSel.value, ovKeepTo = ovToSel.value;
+    ovFromSel.innerHTML = WT_RANGE_OPTIONS_HTML; ovToSel.innerHTML = WT_RANGE_OPTIONS_HTML;
+    ovFromSel.value = ovKeepFrom || '0'; ovToSel.value = ovKeepTo || '100';
+  }
 }
 function toggleWtRange() {
   const on = document.getElementById('phWtRangeOn').checked;
