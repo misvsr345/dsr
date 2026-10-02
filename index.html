@@ -352,15 +352,20 @@
         </div>
       </div>
       <div class="filters" id="recvCustomBox" style="display:none;">
-        <div><label>Start Date</label><input type="date" id="recvStart" onchange="loadReceivingData()"></div>
-        <div><label>End Date</label><input type="date" id="recvEnd" onchange="loadReceivingData()"></div>
+        <div><label>Start Date</label><input type="date" id="recvStart"></div>
+        <div><label>End Date</label><input type="date" id="recvEnd"></div>
       </div>
       <!-- v-fix (BRO: "except photo tab and tag serch tab, migata anniti dagara aremaove hcei. only
            ee rendu dagara matrame tag seach option pettu" — Tag No search now lives only in the Photos
            tab and the dedicated Tag tab; removed here. -->
       <div class="filters">
-        <div><label>Counter</label><select id="recvCounter" onchange="loadReceivingData()"><option value="">All</option></select></div>
+        <div><label>Counter</label><select id="recvCounter"><option value="">All</option></select></div>
       </div>
+      <!-- v-fix (BRO: "date select chesaka or today/yesterday select chesaka show button pettu, adi
+           click cheste data ravali" — Today/Yesterday/Custom Date and Counter used to fire
+           loadReceivingData() immediately on every single change; now they just set the filter and
+           wait, same as the Sold tab's "Show Sold Items" button, so data only loads on an explicit tap. -->
+      <button class="btn" onclick="loadReceivingData()" style="margin-top:6px;">🔍 Show Receiving</button>
     </div>
     <div id="receivingSummary" class="note"></div>
     <div id="receivingBody" class="ov-table-wrap"></div>
@@ -385,15 +390,20 @@
         </div>
       </div>
       <div class="filters" id="rdrCustomBox" style="display:none;">
-        <div><label>Start Date</label><input type="date" id="rdrStart" onchange="loadRdrData()"></div>
-        <div><label>End Date</label><input type="date" id="rdrEnd" onchange="loadRdrData()"></div>
+        <div><label>Start Date</label><input type="date" id="rdrStart"></div>
+        <div><label>End Date</label><input type="date" id="rdrEnd"></div>
       </div>
       <!-- v-fix (BRO: "except photo tab and tag serch tab, migata anniti dagara aremaove hcei. only
            ee rendu dagara matrame tag seach option pettu" — Tag No search now lives only in the Photos
            tab and the dedicated Tag tab; removed here. -->
       <div class="filters">
-        <div><label>Counter</label><select id="rdrCounter" onchange="loadRdrData()"><option value="">All</option></select></div>
+        <div><label>Counter</label><select id="rdrCounter"><option value="">All</option></select></div>
       </div>
+      <!-- v-fix (BRO: "date select chesaka or today/yesterday select chesaka show button pettu, adi
+           click cheste data ravali" — Today/Yesterday/Custom Date and Counter used to fire
+           loadRdrData() immediately on every single change; now they just set the filter and wait,
+           same as the Sold tab's "Show Sold Items" button, so data only loads on an explicit tap. -->
+      <button class="btn" onclick="loadRdrData()" style="margin-top:6px;">🔍 Show Return / Damage / Repair</button>
     </div>
     <div id="rdrSummary" class="note"></div>
     <div id="rdrBody" class="ov-table-wrap"></div>
@@ -1813,17 +1823,18 @@ function setSoldMode(mode) {
 }
 // v-add (BRO: "sold tab lo unnatu today yesteday custome date anniti lo pettu" — same Today/Yesterday/
 // Custom Date quick-filter as Sold, now on Receiving and RDR too, each in that tab's own accent color.
+// v-fix (BRO: "date select chesaka or today/yesterday select chesaka show button pettu, adi click
+// cheste data ravali" — these used to auto-load immediately on every mode switch; now, same as
+// setSoldMode above, they only set the mode/styling and wait for their tab's explicit Show button.
 const RECV = { mode: 'today' };
 function setRecvMode(mode) {
   RECV.mode = mode;
   applyDateModeStyle_(mode, document.getElementById('recvModeTodayBtn'), document.getElementById('recvModeYesterdayBtn'), document.getElementById('recvModeCustomBtn'), 'recvCustomBox', 'var(--acc-receiving)');
-  loadReceivingData();
 }
 const RDR = { mode: 'today' };
 function setRdrMode(mode) {
   RDR.mode = mode;
   applyDateModeStyle_(mode, document.getElementById('rdrModeTodayBtn'), document.getElementById('rdrModeYesterdayBtn'), document.getElementById('rdrModeCustomBtn'), 'rdrCustomBox', 'var(--acc-rdr)');
-  loadRdrData();
 }
 // Shared by loadReceivingData/loadRdrData below — turns a tab's {mode} into a concrete [start, end]
 // date range, same today/yesterday/custom rule the Sold tab already uses.
