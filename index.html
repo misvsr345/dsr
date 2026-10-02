@@ -1093,11 +1093,15 @@ function populateWtRangeOptions() {
 function toggleWtRange() {
   const on = document.getElementById('phWtRangeOn').checked;
   document.getElementById('phWtRangeBox').style.display = on ? 'grid' : 'none';
+  // v-fix (BRO: "wt chekbox untick cheste, ventane drop down rend reset avali" — unticking the
+  // checkbox resets both From/To back to their defaults (0 and 100) right away, not just hides the box.
+  if (!on) { document.getElementById('phWtFrom').value = '0'; document.getElementById('phWtTo').value = '100'; }
   applyFiltersAndRender();
 }
 function toggleOvWtRange() {
   const on = document.getElementById('ovWtRangeOn').checked;
   document.getElementById('ovWtRangeBox').style.display = on ? 'grid' : 'none';
+  if (!on) { document.getElementById('ovWtFrom').value = '0'; document.getElementById('ovWtTo').value = '100'; }
   ovLoadDetail();
 }
 function reloadProductOptions() {
