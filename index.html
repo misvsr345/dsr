@@ -1609,7 +1609,11 @@ function prevDateStr_(d) {
   return dt.getFullYear() + '-' + p(dt.getMonth() + 1) + '-' + p(dt.getDate());
 }
 const LEDGER_CACHE = {}; // { [uptoDate]: {sales:[...], outletIssues:[...], rdr:[...]} } — in-memory, this session.
-const LEDGER_RDR_ROWS = {}; // { [date]: rdr[] } — v-add (Return/Damage/Repair) — for ovShowRdrDetail's popup
+// v-add (BRO's clickable stock-transaction-totals requirement) — the counter/date/data context from the
+// most recently rendered Ledger table, so a click on any transaction number (product row OR the TOTAL
+// row) can look its detail rows back up after ovLoadLedger() has already returned. Replaced wholesale on
+// every ovLoadLedger() call — never read before the Ledger table itself has rendered at least once.
+let OV_LEDGER_STATE = null;
 const LEDGER_IDB_PREFIX = 'ledgerData_';
 // v-fix (BRO: "ledge data stock phto lo loading late avutundi. koddiga fast ga load avali... avi kuda
 // offline lo cache laga pettu. stockphoto file lo pettu. portal vaddu... evaru adi personal ga use
@@ -1746,12 +1750,22 @@ async function ovLoadLedger() {
   const saleOn = (key, d) => sumMatching(ledgerData.sales, key, s => s.date === d);
   const outletUpto = (key, upto) => sumMatching(ledgerData.outletIssues, key, o => o.date <= upto);
   const outletOn = (key, d) => sumMatching(ledgerData.outletIssues, key, o => o.date === d);
-  // v-add (BRO's Return/Damage/Repair feature) — the Ledger's "Return" column, combining all 3
-  // reasons (Return/Damage/Repair) into one number for that day, clickable for a per-item detail popup.
+  // v-fix (BRO's "stock movement transparency" requirement) — Return/Damage/Repair used to be shown
+  // as one combined "Return" number. All 3 reasons still leave this counter's Stock the exact same way
+  // (StockBackend's syncRDR_ — verified against the existing code, nothing about that changed here), so
+  // the Opening→Closing math (rdrUpto, used below) still sums all 3 together, exactly as before. What
+  // changes is DISPLAY ONLY: Return/Damage/Repair now get their own column each, each independently
+  // clickable, instead of being lumped into a single ambiguous "Return = 4" that could hide a Damage or
+  // Repair inside it.
   const rdrUpto = (key, upto) => sumMatching(ledgerData.rdr, key, o => o.date <= upto);
-  const rdrRowsOn = (key, d) => (ledgerData.rdr || []).filter(o => o.date === d && resolveKey_(o) === key);
-  const rdrOn = (key, d) => rdrRowsOn(key, d).length;
-  LEDGER_RDR_ROWS[dateVal] = ledgerData.rdr || [];
+  // key === null means "every product in this counter" (used by the TOTAL row's popups).
+  const rdrReasonRowsOn = (key, d, reason) => (ledgerData.rdr || []).filter(o =>
+    o.date === d && o.reason === reason && (key === null ? resolveKey_(o) !== null : resolveKey_(o) === key));
+  const rdrReasonOn = (key, d, reason) => rdrReasonRowsOn(key, d, reason).length;
+  // v-add (BRO's clickable stock-transaction-totals feature) — every category's rows/popup functions
+  // need this same counter+date context after ovLoadLedger() has returned, so it's kept here instead of
+  // trapped inside this function's local closure.
+  OV_LEDGER_STATE = { counter, dateVal, entryRows, ledgerData, resolveKey_, groupKey_ };
   // v-add (BRO: "opening closing sold return ila anni icharu, danto patu receiving kuda ivu" — the
   // ledger table itself should also show, per row, how many pieces were RECEIVED that exact day.
   // v-fix (BRO: "opening stock coutn and closing stock count different undi ante day lo sale or
@@ -1783,10 +1797,19 @@ async function ovLoadLedger() {
     const closingToday = isToday ? liveCount(key)
       : (base + receivingUpto(key, dateVal) - saleUpto(key, dateVal) - outletUpto(key, dateVal) - rdrUpto(key, dateVal));
     const closingPrev = base + receivingUpto(key, prevDate) - saleUpto(key, prevDate) - outletUpto(key, prevDate) - rdrUpto(key, prevDate);
+    const receiving = receivingOn(key, dateVal), sold = saleOn(key, dateVal), outlet = outletOn(key, dateVal);
+    const ret = rdrReasonOn(key, dateVal, 'Return'), damage = rdrReasonOn(key, dateVal, 'Damage'), repair = rdrReasonOn(key, dateVal, 'Repair');
+    // v-add (BRO: "the system must never silently show a Closing quantity that cannot be explained by
+    // the visible stock movements... if there is a genuine unexplained difference, show it clearly" —
+    // for TODAY, Closing is the live physical Stock count (liveCount, most accurate — see the isToday
+    // comment above), while this formula-based expected value is built purely from the visible
+    // Receiving/Sold/Return/Damage/Repair/Outlet Issue columns on screen. Any gap between the two means
+    // something changed the physical count that none of those columns caught (an old tag re-tagged, a
+    // manual Stock edit, etc.) — surfaced as an explicit Diff instead of a silent mismatch.
+    const expectedClosing = closingPrev + receiving - sold - ret - damage - repair - outlet;
     return {
       product: groups[key].product, design: groups[key].design, key: key,
-      opening: closingPrev, closing: closingToday, receiving: receivingOn(key, dateVal),
-      sold: saleOn(key, dateVal), ret: rdrOn(key, dateVal), outlet: outletOn(key, dateVal)
+      opening: closingPrev, closing: closingToday, expectedClosing, receiving, sold, ret, damage, repair, outlet
     };
   }).sort((a, b) => a.product.localeCompare(b.product, undefined, { numeric: true, sensitivity: 'base' }) || a.design.localeCompare(b.design, undefined, { numeric: true, sensitivity: 'base' }));
 
@@ -1797,48 +1820,113 @@ async function ovLoadLedger() {
   // data cell alike, is centered, and no heading wraps to a 2nd line.
   // BRO: "all pages lo kinda totals ravali" — a totals row summing every column, at the bottom of the table.
   const tot = list.reduce((s, r) => {
-    s.opening += r.opening; s.closing += r.closing; s.receiving += r.receiving; s.sold += r.sold; s.ret += r.ret; s.outlet += r.outlet;
+    s.opening += r.opening; s.closing += r.closing; s.expectedClosing += r.expectedClosing;
+    s.receiving += r.receiving; s.sold += r.sold; s.ret += r.ret; s.damage += r.damage; s.repair += r.repair; s.outlet += r.outlet;
     return s;
-  }, { opening: 0, closing: 0, receiving: 0, sold: 0, ret: 0, outlet: 0 });
+  }, { opening: 0, closing: 0, expectedClosing: 0, receiving: 0, sold: 0, ret: 0, damage: 0, repair: 0, outlet: 0 });
+
+  // v-add (BRO's clickable stock-transaction-totals requirement) — one clickable <a> builder reused for
+  // every category, per-product (pass a real key) AND for the TOTAL row (pass key=null, meaning "every
+  // product in this counter"). fn is the onclick handler name; count is the number actually shown.
+  function cell_(count, fn, key, productLabel) {
+    if (!(count > 0)) return count;
+    const keyArg = key === null ? 'null' : `'${escJs(key)}'`;
+    const labelArg = productLabel ? `'${escJs(productLabel)}'` : 'null';
+    return `<a href="#" onclick="${fn}(${keyArg},'${dateVal}',${labelArg},${byDesign});return false;" style="font-weight:800;text-decoration:underline;color:var(--purple-mid);">${count}</a>`;
+  }
   // v-fix (BRO: "closgin option ni chivara pettu" — Closing moved to the last column, so the row
   // reads left-to-right as the story of the day: Opening, then everything that moved it, then
   // Closing as the final result.
-  let html = `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:center;">Opening</th><th style="text-align:center;">Receiving</th><th style="text-align:center;">Sold</th><th style="text-align:center;">Return</th><th style="text-align:center;">Outlet Issue</th><th style="text-align:center;">Closing</th></tr></thead><tbody>`;
+  let html = `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:center;">Opening</th><th style="text-align:center;">Receiving</th><th style="text-align:center;">Sold</th><th style="text-align:center;">Return</th><th style="text-align:center;">Damage</th><th style="text-align:center;">Repair</th><th style="text-align:center;">Outlet Issue</th><th style="text-align:center;">Closing</th></tr></thead><tbody>`;
   list.forEach(r => {
-    const retCell = r.ret > 0 ? `<a href="#" onclick="ovShowRdrDetail('${escJs(r.key)}','${dateVal}','${escJs(properCase(r.product))}',${byDesign});return false;" style="color:#B03A2E;font-weight:800;text-decoration:underline;">${r.ret}</a>` : r.ret;
+    // Raw (not HTML-escaped) — this goes through escJs() into an onclick string, then gets escHtml()'d
+    // once, at render time, inside the popup itself (ovShowCategoryDetail_). Escaping it here too would
+    // double-escape any &/</> in a product name.
+    const label = properCase(r.product) + (byDesign && r.design ? ' — ' + properCase(r.design) : '');
+    const receivingCell = cell_(r.receiving, 'ovShowReceivingDetail_', r.key, label);
+    const soldCell = cell_(r.sold, 'ovShowSoldDetail_', r.key, label);
+    const retCell = cell_(r.ret, 'ovShowReturnDetail_', r.key, label);
+    const damageCell = cell_(r.damage, 'ovShowDamageDetail_', r.key, label);
+    const repairCell = cell_(r.repair, 'ovShowRepairDetail_', r.key, label);
+    const outletCell = cell_(r.outlet, 'ovShowOutletDetail_', r.key, label);
     // v-add (BRO: "opening and closing different 4 undi. aavi evi evi ani ela telustundi" — when a
     // row's Opening and Closing don't match (TODAY only, since that's the only live-counted column),
     // the Closing number is now clickable to see the actual Tag Nos sitting in stock for that
     // Product(+Design) right now, each with its Entry Type/Entry Date — so whatever's causing the
-    // gap (an item added/edited in a way none of Receiving/Sold/Return/Outlet Issue caught) can be
-    // spotted by eye instead of staying a mystery number.
-    const closingCell = (isToday && r.opening !== r.closing)
-      ? `<a href="#" onclick="ovShowStockTagsDetail_('${escJs(r.key)}','${escJs(properCase(r.product))}',${byDesign});return false;" style="color:var(--purple);font-weight:800;text-decoration:underline;">${r.closing}</a>`
+    // gap (an item added/edited in a way none of Receiving/Sold/Return/Damage/Repair/Outlet Issue
+    // caught) can be spotted by eye instead of staying a mystery number. v-add: the actual Diff value
+    // itself is now also shown in words, right next to the number, so it's never a silent mismatch.
+    const diff = r.closing - r.expectedClosing;
+    const diffNote = (isToday && diff !== 0) ? ` <span style="color:#B03A2E;font-weight:700;font-size:11px;">(Δ${diff > 0 ? '+' : ''}${diff})</span>` : '';
+    const closingCell = (isToday && diff !== 0)
+      ? `<a href="#" onclick="ovShowStockTagsDetail_('${escJs(r.key)}','${escJs(properCase(r.product))}',${byDesign});return false;" style="color:var(--purple);font-weight:800;text-decoration:underline;">${r.closing}</a>${diffNote}`
       : r.closing;
-    html += `<tr><td>${escHtml(properCase(r.product))}</td>${byDesign ? `<td>${escHtml(properCase(r.design) || '—')}</td>` : ''}<td style="text-align:center;">${r.opening}</td><td style="text-align:center;">${r.receiving}</td><td style="text-align:center;">${r.sold}</td><td style="text-align:center;">${retCell}</td><td style="text-align:center;">${r.outlet}</td><td style="text-align:center;">${closingCell}</td></tr>`;
+    html += `<tr><td>${escHtml(properCase(r.product))}</td>${byDesign ? `<td>${escHtml(properCase(r.design) || '—')}</td>` : ''}<td style="text-align:center;">${r.opening}</td><td style="text-align:center;">${receivingCell}</td><td style="text-align:center;">${soldCell}</td><td style="text-align:center;">${retCell}</td><td style="text-align:center;">${damageCell}</td><td style="text-align:center;">${repairCell}</td><td style="text-align:center;">${outletCell}</td><td style="text-align:center;">${closingCell}</td></tr>`;
   });
-  html += `<tr style="font-weight:800;border-top:2px solid var(--gold);"><td>Total</td>${byDesign ? '<td></td>' : ''}<td style="text-align:center;">${tot.opening}</td><td style="text-align:center;">${tot.receiving}</td><td style="text-align:center;">${tot.sold}</td><td style="text-align:center;">${tot.ret}</td><td style="text-align:center;">${tot.outlet}</td><td style="text-align:center;">${tot.closing}</td></tr>`;
+  // TOTAL row — v-add: every one of its transaction numbers is ALSO clickable (key=null = every product
+  // in this counter combined), per BRO: "do NOT require the employee to click individual product rows
+  // to understand the total transaction details... the Total hyperlink is the PRIMARY way to review."
+  const totDiff = tot.closing - tot.expectedClosing;
+  const totDiffNote = (isToday && totDiff !== 0) ? ` <span style="color:#B03A2E;font-weight:700;font-size:11px;">(Δ${totDiff > 0 ? '+' : ''}${totDiff})</span>` : '';
+  html += `<tr style="font-weight:800;border-top:2px solid var(--gold);"><td>Total</td>${byDesign ? '<td></td>' : ''}<td style="text-align:center;">${tot.opening}</td>` +
+    `<td style="text-align:center;">${cell_(tot.receiving, 'ovShowReceivingDetail_', null, null)}</td>` +
+    `<td style="text-align:center;">${cell_(tot.sold, 'ovShowSoldDetail_', null, null)}</td>` +
+    `<td style="text-align:center;">${cell_(tot.ret, 'ovShowReturnDetail_', null, null)}</td>` +
+    `<td style="text-align:center;">${cell_(tot.damage, 'ovShowDamageDetail_', null, null)}</td>` +
+    `<td style="text-align:center;">${cell_(tot.repair, 'ovShowRepairDetail_', null, null)}</td>` +
+    `<td style="text-align:center;">${cell_(tot.outlet, 'ovShowOutletDetail_', null, null)}</td>` +
+    `<td style="text-align:center;">${tot.closing}${totDiffNote}</td></tr>`;
   html += '</tbody></table></div>';
   body.innerHTML = html;
 }
-// v-add (BRO's Return/Damage/Repair feature) — clicking the Ledger's Return count opens this detail
-// popup listing the individual Tag No / Reason / Employee behind that day's combined number.
-function ovShowRdrDetail(key, date, productLabel, byDesign) {
-  const rows = (LEDGER_RDR_ROWS[date] || []).filter(o => {
-    const rowKey = byDesign ? (o.productName + '|' + String(o.design || '').trim()) : o.productName;
-    return rowKey === key;
-  });
-  let inner = `<div style="font-weight:800;font-size:15px;margin-bottom:4px;">↩️ Return / Damage / Repair — ${escHtml(productLabel)}</div>
-    <div class="note" style="text-align:left;padding:0 0 10px;">${fmtDMY(date)} · ${rows.length} item${rows.length === 1 ? '' : 's'}</div>`;
+
+// v-add (BRO's clickable stock-transaction-totals requirement) — the one popup renderer every category
+// below shares: a plain, mobile-friendly, scrollable table (Tag No / Product / Date / Employee / Type),
+// filtered to the counter+date already on screen — key=null means "every product" (the TOTAL row).
+function ovShowCategoryDetail_(rows, icon, title, key, productLabel) {
+  const scope = key === null ? OV_LEDGER_STATE.counter : (productLabel || OV_LEDGER_STATE.counter);
+  let inner = `<div style="font-weight:800;font-size:15px;margin-bottom:4px;">${icon} ${escHtml(title)}</div>
+    <div class="note" style="text-align:left;padding:0 0 10px;">${escHtml(scope)} · ${fmtDMY(OV_LEDGER_STATE.dateVal)} · ${rows.length} item${rows.length === 1 ? '' : 's'}</div>`;
   if (!rows.length) {
     inner += '<div class="empty" style="padding:20px 0;">No detail found.</div>';
   } else {
-    inner += `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Tag No</th><th>Reason</th><th>Employee</th></tr></thead><tbody>` +
-      rows.map(r => `<tr><td><b>${escHtml(r.tagNo || '—')}</b></td><td>${escHtml(r.reason || '—')}</td><td>${escHtml(properCase(r.employee) || '—')}</td></tr>`).join('') +
+    inner += `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Tag No</th><th>Product</th><th>Type</th><th>Employee</th></tr></thead><tbody>` +
+      rows.map(r => `<tr><td><b>${escHtml(r.tagNo || '—')}</b></td><td>${escHtml(properCase(r.productName) || '—')}${r.design ? ' — ' + escHtml(properCase(r.design)) : ''}</td><td>${escHtml(r.type || '—')}</td><td>${escHtml(properCase(r.employee) || '—')}</td></tr>`).join('') +
       '</tbody></table></div>';
   }
   ovSimpleModal(inner);
 }
+function ovShowReceivingDetail_(key, date, productLabel) {
+  const rows = OV_LEDGER_STATE.entryRows.filter(r =>
+    (r.entryType === 'Receiving Stock' || r.entryType === 'Return' || r.entryType === 'Damage Receive') && r.entryDate === date &&
+    (key === null || OV_LEDGER_STATE.groupKey_(r.productName, r.design) === key)
+  ).map(r => ({ tagNo: r.tagNo, productName: r.productName, design: r.design, employee: r.enteredBy, type: r.entryType }));
+  ovShowCategoryDetail_(rows, '📥', key === null ? "Total Receiving Details" : 'Receiving Details', key, productLabel);
+}
+function ovShowSoldDetail_(key, date, productLabel) {
+  const rows = OV_LEDGER_STATE.ledgerData.sales.filter(s => s.date === date &&
+    (key === null ? OV_LEDGER_STATE.resolveKey_(s) !== null : OV_LEDGER_STATE.resolveKey_(s) === key)
+  ).map(s => ({ tagNo: s.tagNo, productName: s.productName, design: s.design, employee: s.employee, type: s.type }));
+  ovShowCategoryDetail_(rows, '🛒', key === null ? "Total Sold Details" : 'Sold Details', key, productLabel);
+}
+function ovShowOutletDetail_(key, date, productLabel) {
+  const rows = OV_LEDGER_STATE.ledgerData.outletIssues.filter(o => o.date === date &&
+    (key === null ? OV_LEDGER_STATE.resolveKey_(o) !== null : OV_LEDGER_STATE.resolveKey_(o) === key)
+  ).map(o => ({ tagNo: o.tagNo, productName: o.productName, design: o.design, employee: o.employee, type: o.type }));
+  ovShowCategoryDetail_(rows, '📤', key === null ? "Total Outlet Issue Details" : 'Outlet Issue Details', key, productLabel);
+}
+// Return / Damage / Repair each get their own popup now (same RDR sheet, filtered by its own `reason`)
+// instead of one combined "Return" popup — BRO: "the user must be able to distinguish Return / Damage /
+// Repair... each number should be clickable and should show its corresponding details."
+function ovShowRdrReasonDetail_(reason, icon, key, date, productLabel) {
+  const rows = (OV_LEDGER_STATE.ledgerData.rdr || []).filter(o => o.date === date && o.reason === reason &&
+    (key === null ? OV_LEDGER_STATE.resolveKey_(o) !== null : OV_LEDGER_STATE.resolveKey_(o) === key)
+  ).map(o => ({ tagNo: o.tagNo, productName: o.productName, design: o.design, employee: o.employee, type: o.type }));
+  ovShowCategoryDetail_(rows, icon, key === null ? `Total ${reason} Details` : `${reason} Details`, key, productLabel);
+}
+function ovShowReturnDetail_(key, date, productLabel) { ovShowRdrReasonDetail_('Return', '↩️', key, date, productLabel); }
+function ovShowDamageDetail_(key, date, productLabel) { ovShowRdrReasonDetail_('Damage', '⚠️', key, date, productLabel); }
+function ovShowRepairDetail_(key, date, productLabel) { ovShowRdrReasonDetail_('Repair', '🔧', key, date, productLabel); }
 
 // v-add (BRO: "opening and closing different 4 undi. aavi evi evi ani ela telustundi" — the Tag Nos
 // behind a mismatched Opening/Closing, straight from the live Stock snapshot (same data Closing itself
