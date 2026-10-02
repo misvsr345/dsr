@@ -1666,7 +1666,7 @@ function ovOpenLedgerFromTitle() {
   if (!OV.curCounter) return;
   document.getElementById('ovDetailView').style.display = 'none';
   document.getElementById('ovLedgerView').style.display = '';
-  document.getElementById('ovLedgerTitle').textContent = OV.curCounter + ' — Opening / Closing Ledger';
+  document.getElementById('ovLedgerTitle').textContent = OV.curCounter + ' — Stock Count';
   ovLoadLedger();
 }
 function ovBackToDetailFromLedger() {
@@ -1678,97 +1678,39 @@ function ovBackToDetailFromLedger() {
 // Issue already have their own dedicated tabs elsewhere in this app, so this Ledger view is no longer
 // a day-by-day transaction breakdown — it's just the running stock BALANCE per product, always as of
 // today, with no date to pick.
-//   Opening = formula as of yesterday (base + inflow-upto-yesterday - outflow-upto-yesterday)
-//   Closing = today's live physical Stock count (same ground truth every other page already shows)
-async function ovLoadLedger() {
+// v-fix (BRO: "opening closing kuda vaddu. only count matrame ivu. opening closing heading vaddu. nly
+// count" — no Opening/Closing split at all any more, just today's live physical Stock count per
+// product. No DSR/ledgerData fetch needed any more either — this is a plain, fast, offline count
+// straight from STOCK_SNAPSHOT.)
+function ovLoadLedger() {
   const body = document.getElementById('ovLedgerBody');
   const counter = OV.curCounter;
   if (!counter) return;
   const byDesign = document.getElementById('ovByDesign').checked;
-  const dateVal = todayStr_ph();
   if (!STOCK_SNAPSHOT.length && !SOLD_SNAPSHOT.length) {
     body.innerHTML = '<div class="empty" style="color:var(--dmuted);">No offline data saved yet — connect once to load.</div>' + reloadBtnHtml();
     return;
   }
-  body.innerHTML = '<div class="loading" style="color:var(--dmuted);"><span class="spinner"></span>Loading DSR data...</div>';
-  let ledgerData;
-  try {
-    ledgerData = await fetchLedgerUpto_(dateVal);
-  } catch (e) {
-    body.innerHTML = `<div class="empty" style="color:var(--dmuted);">${escHtml(e.message || 'Could not load DSR data — check the connection.')}</div>` + reloadBtnHtml();
-    return;
-  }
-  // the person may have left this view while the fetch above was in flight
-  if (OV.curCounter !== counter || document.getElementById('ovLedgerView').style.display === 'none') return;
-
-  const prevDate = prevDateStr_(dateVal);
-  const tagIdx = buildTagIndex_();
-  const entryRows = allEntryRows_().filter(r => rowCounter_(r) === counter);
 
   const groupKey_ = (productName, design) => byDesign ? (productName + '|' + String(design || '').trim()) : productName;
-
-  // Every Product(+Design) group this counter has ever had an Opening/Receiving entry for.
   const groups = {};
-  entryRows.forEach(r => {
+  STOCK_SNAPSHOT.filter(r => rowCounter_(r) === counter).forEach(r => {
     const key = groupKey_(r.productName, r.design);
-    if (!groups[key]) groups[key] = { product: r.productName, design: byDesign ? String(r.design || '').trim() : '' };
+    if (!groups[key]) groups[key] = { product: r.productName, design: byDesign ? String(r.design || '').trim() : '', count: 0 };
+    groups[key].count += rowQty_(r);
   });
 
-  function baseline(key) {
-    return entryRows.filter(r => r.entryType === 'Opening Stock' && groupKey_(r.productName, r.design) === key)
-      .reduce((s, r) => s + rowQty_(r), 0);
-  }
-  // "Return"/"Damage Receive" entryTypes are items physically coming back into this counter's stock —
-  // inbound additions just like Receiving Stock.
-  function receivingUpto(key, upto) {
-    return entryRows.filter(r => (r.entryType === 'Receiving Stock' || r.entryType === 'Return' || r.entryType === 'Damage Receive') && r.entryDate && r.entryDate <= upto && groupKey_(r.productName, r.design) === key)
-      .reduce((s, r) => s + rowQty_(r), 0);
-  }
-  // Sale/Outlet-Issue rows carry no Counter of their own — resolved here via Tag No against the same
-  // Stock/Sold snapshot used for the rest of this page. Returns null (skip) for a tag not found there,
-  // or one that belongs to a different counter.
-  function resolveKey_(row) {
-    const hit = tagIdx[normTag(row.tagNo)];
-    if (!hit || hit.counter !== counter) return null;
-    return groupKey_(hit.productName, hit.design);
-  }
-  function sumMatching(list, key, pred) {
-    let n = 0;
-    list.forEach(row => { if (pred(row) && resolveKey_(row) === key) n++; });
-    return n;
-  }
-  const saleUpto = (key, upto) => sumMatching(ledgerData.sales, key, s => s.date <= upto);
-  const outletUpto = (key, upto) => sumMatching(ledgerData.outletIssues, key, o => o.date <= upto);
-  const rdrUpto = (key, upto) => sumMatching(ledgerData.rdr, key, o => o.date <= upto);
+  const list = Object.values(groups).sort((a, b) => a.product.localeCompare(b.product, undefined, { numeric: true, sensitivity: 'base' }) || a.design.localeCompare(b.design, undefined, { numeric: true, sensitivity: 'base' }));
 
-  // v-fix (BRO: "count differenct chupistundi. okko page okko laga" — the Ledger's pure formula total
-  // can land on a different number than the counter's REAL physical stock (shown on the Overview
-  // counter cards and the product-count page) — old/untracked data a formula can't explain. So Closing
-  // is always the live physical Stock count (same ground truth every other page already shows), never
-  // the formula — the formula is used ONLY to work out Opening (yesterday's close).
-  function liveCount(key) {
-    return STOCK_SNAPSHOT.filter(r => rowCounter_(r) === counter && groupKey_(r.productName, r.design) === key)
-      .reduce((s, r) => s + rowQty_(r), 0);
-  }
-  const list = Object.keys(groups).map(key => {
-    const base = baseline(key);
-    const closingPrev = base + receivingUpto(key, prevDate) - saleUpto(key, prevDate) - outletUpto(key, prevDate) - rdrUpto(key, prevDate);
-    return {
-      product: groups[key].product, design: groups[key].design, key: key,
-      opening: closingPrev, closing: liveCount(key)
-    };
-  }).sort((a, b) => a.product.localeCompare(b.product, undefined, { numeric: true, sensitivity: 'base' }) || a.design.localeCompare(b.design, undefined, { numeric: true, sensitivity: 'base' }));
+  if (!list.length) { body.innerHTML = '<div class="empty" style="color:var(--dmuted);">No stock for this counter yet.</div>'; return; }
 
-  if (!list.length) { body.innerHTML = '<div class="empty" style="color:var(--dmuted);">No ledger data for this counter yet.</div>'; return; }
+  const total = list.reduce((s, r) => s + r.count, 0);
 
-  // BRO: "all pages lo kinda totals ravali" — a totals row summing every column, at the bottom of the table.
-  const tot = list.reduce((s, r) => { s.opening += r.opening; s.closing += r.closing; return s; }, { opening: 0, closing: 0 });
-
-  let html = `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:center;">Opening</th><th style="text-align:center;">Closing</th></tr></thead><tbody>`;
+  let html = `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:center;">Count</th></tr></thead><tbody>`;
   list.forEach(r => {
-    html += `<tr><td>${escHtml(properCase(r.product))}</td>${byDesign ? `<td>${escHtml(properCase(r.design) || '—')}</td>` : ''}<td style="text-align:center;">${r.opening}</td><td style="text-align:center;">${r.closing}</td></tr>`;
+    html += `<tr><td>${escHtml(properCase(r.product))}</td>${byDesign ? `<td>${escHtml(properCase(r.design) || '—')}</td>` : ''}<td style="text-align:center;">${r.count}</td></tr>`;
   });
-  html += `<tr style="font-weight:800;border-top:2px solid var(--gold);"><td>Total</td>${byDesign ? '<td></td>' : ''}<td style="text-align:center;">${tot.opening}</td><td style="text-align:center;">${tot.closing}</td></tr>`;
+  html += `<tr style="font-weight:800;border-top:2px solid var(--gold);"><td>Total</td>${byDesign ? '<td></td>' : ''}<td style="text-align:center;">${total}</td></tr>`;
   html += '</tbody></table></div>';
   body.innerHTML = html;
 }
