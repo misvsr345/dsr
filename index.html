@@ -1061,24 +1061,32 @@ function renderFiltersFromData() {
 // v-fix (BRO: "weiht drop down lo any ani kakunda 0 tho start chei. last weight lo end lo undali" — no
 // "Any" placeholder any more; the list is just plain numbers 0 through 100. From defaults to 0 (the
 // first/lowest) and To defaults to 100 (the last/highest) so the filter still covers the full range
-// out of the box — same effective behavior "Any" used to give, just without that extra option.) ----
-const WT_RANGE_OPTIONS_HTML = (() => {
+// out of the box — same effective behavior "Any" used to give, just without that extra option.)
+// v-fix (BRO: "start lo 0 to 100 undali, end lo 100 to 0 undali" — From Wt list stays ascending
+// (0,1,2…100), but To Wt list is reversed, descending (100,99,98…0), so its own first/top entry —
+// and default — is 100, the highest.) ----
+const WT_RANGE_OPTIONS_HTML_ASC = (() => {
   let html = '';
   for (let i = 0; i <= 100; i++) html += `<option>${i}</option>`;
+  return html;
+})();
+const WT_RANGE_OPTIONS_HTML_DESC = (() => {
+  let html = '';
+  for (let i = 100; i >= 0; i--) html += `<option>${i}</option>`;
   return html;
 })();
 function populateWtRangeOptions() {
   const fromSel = document.getElementById('phWtFrom'), toSel = document.getElementById('phWtTo');
   if (!fromSel || !toSel) return;
   const keepFrom = fromSel.value, keepTo = toSel.value;
-  fromSel.innerHTML = WT_RANGE_OPTIONS_HTML; toSel.innerHTML = WT_RANGE_OPTIONS_HTML;
+  fromSel.innerHTML = WT_RANGE_OPTIONS_HTML_ASC; toSel.innerHTML = WT_RANGE_OPTIONS_HTML_DESC;
   fromSel.value = keepFrom || '0'; toSel.value = keepTo || '100';
   // v-add (BRO: "wt kuda ivu... adi click cheste from and to wt box lu ravali" — Overview's own Weight
   // Range filter, same fixed 0–100 list as the Photos tab's).
   const ovFromSel = document.getElementById('ovWtFrom'), ovToSel = document.getElementById('ovWtTo');
   if (ovFromSel && ovToSel) {
     const ovKeepFrom = ovFromSel.value, ovKeepTo = ovToSel.value;
-    ovFromSel.innerHTML = WT_RANGE_OPTIONS_HTML; ovToSel.innerHTML = WT_RANGE_OPTIONS_HTML;
+    ovFromSel.innerHTML = WT_RANGE_OPTIONS_HTML_ASC; ovToSel.innerHTML = WT_RANGE_OPTIONS_HTML_DESC;
     ovFromSel.value = ovKeepFrom || '0'; ovToSel.value = ovKeepTo || '100';
   }
 }
