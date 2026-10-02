@@ -1854,20 +1854,21 @@ async function ovLoadLedger() {
     // the Closing number is now clickable to see the actual Tag Nos sitting in stock for that
     // Product(+Design) right now, each with its Entry Type/Entry Date — so whatever's causing the
     // gap (an item added/edited in a way none of Receiving/Sold/Return/Damage/Repair/Outlet Issue
-    // caught) can be spotted by eye instead of staying a mystery number. v-add: the actual Diff value
-    // itself is now also shown in words, right next to the number, so it's never a silent mismatch.
+    // caught) can be spotted by eye instead of staying a mystery number.
+    // v-fix (BRO: "meru ichina emoji+1 ani braket vastundi. ala vaddu. adi meaningless" — the real
+    // transaction, if one explains the gap, already shows as a number in its own column (Receiving/
+    // Sold/Return/Damage/Repair/Outlet Issue above); a separate "(Δ+1)" badge next to Closing added
+    // nothing an employee could act on, so it's removed. Closing stays clickable as the investigate-
+    // it-yourself fallback for any gap none of those columns explain.)
     const diff = r.closing - r.expectedClosing;
-    const diffNote = (isToday && diff !== 0) ? ` <span style="color:#B03A2E;font-weight:700;font-size:11px;">(Δ${diff > 0 ? '+' : ''}${diff})</span>` : '';
     const closingCell = (isToday && diff !== 0)
-      ? `<a href="#" onclick="ovShowStockTagsDetail_('${escJs(r.key)}','${escJs(properCase(r.product))}',${byDesign});return false;" style="color:var(--purple);font-weight:800;text-decoration:underline;">${r.closing}</a>${diffNote}`
+      ? `<a href="#" onclick="ovShowStockTagsDetail_('${escJs(r.key)}','${escJs(properCase(r.product))}',${byDesign});return false;" style="color:var(--purple);font-weight:800;text-decoration:underline;">${r.closing}</a>`
       : r.closing;
     html += `<tr><td>${escHtml(properCase(r.product))}</td>${byDesign ? `<td>${escHtml(properCase(r.design) || '—')}</td>` : ''}<td style="text-align:center;">${r.opening}</td><td style="text-align:center;">${receivingCell}</td><td style="text-align:center;">${soldCell}</td><td style="text-align:center;">${retCell}</td><td style="text-align:center;">${damageCell}</td><td style="text-align:center;">${repairCell}</td><td style="text-align:center;">${outletCell}</td><td style="text-align:center;">${closingCell}</td></tr>`;
   });
   // TOTAL row — v-add: every one of its transaction numbers is ALSO clickable (key=null = every product
   // in this counter combined), per BRO: "do NOT require the employee to click individual product rows
   // to understand the total transaction details... the Total hyperlink is the PRIMARY way to review."
-  const totDiff = tot.closing - tot.expectedClosing;
-  const totDiffNote = (isToday && totDiff !== 0) ? ` <span style="color:#B03A2E;font-weight:700;font-size:11px;">(Δ${totDiff > 0 ? '+' : ''}${totDiff})</span>` : '';
   html += `<tr style="font-weight:800;border-top:2px solid var(--gold);"><td>Total</td>${byDesign ? '<td></td>' : ''}<td style="text-align:center;">${tot.opening}</td>` +
     `<td style="text-align:center;">${cell_(tot.receiving, 'ovShowReceivingDetail_', null, null)}</td>` +
     `<td style="text-align:center;">${cell_(tot.sold, 'ovShowSoldDetail_', null, null)}</td>` +
@@ -1875,7 +1876,7 @@ async function ovLoadLedger() {
     `<td style="text-align:center;">${cell_(tot.damage, 'ovShowDamageDetail_', null, null)}</td>` +
     `<td style="text-align:center;">${cell_(tot.repair, 'ovShowRepairDetail_', null, null)}</td>` +
     `<td style="text-align:center;">${cell_(tot.outlet, 'ovShowOutletDetail_', null, null)}</td>` +
-    `<td style="text-align:center;">${tot.closing}${totDiffNote}</td></tr>`;
+    `<td style="text-align:center;">${tot.closing}</td></tr>`;
   html += '</tbody></table></div>';
   body.innerHTML = html;
 }
