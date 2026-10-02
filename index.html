@@ -1778,38 +1778,28 @@ async function ovLoadLedger() {
   // exactly, so whatever moves Closing always shows up here.
   const receivingOn = (key, d) => entryRows.filter(r => (r.entryType === 'Receiving Stock' || r.entryType === 'Return' || r.entryType === 'Damage Receive') && r.entryDate === d && groupKey_(r.productName, r.design) === key).reduce((s, r) => s + rowQty_(r), 0);
 
-  // v-fix (BRO: "tag no ki lookup chesi count cheste saripotundi kada" — for TODAY, closing doesn't
-  // need to be rebuilt from the whole transaction history at all: the live Stock snapshot already IS
-  // today's true physical count, tag by tag, same as the Overview "Current Stock" card. Historical
-  // DSR data (old duplicate rows, sales recorded before Stock Level even existed for a tag that's
-  // since been reused, etc.) can never perfectly reconstruct a running total back to day one — but it
-  // doesn't need to for TODAY, since we can just count what's physically in Stock right now. The
-  // additive formula is kept ONLY for a PAST date (no live snapshot exists for a day that's already
-  // gone), which is also the only place old-data imperfections can still show up.
-  const isToday = dateVal === todayStr_ph();
-  function liveCount(key) {
-    return STOCK_SNAPSHOT.filter(r => rowCounter_(r) === counter && groupKey_(r.productName, r.design) === key)
-      .reduce((s, r) => s + rowQty_(r), 0);
-  }
-
+  // v-fix (BRO: "closing data direct sheet nundi vaddu. closing data formula trhouga colunt hcei" —
+  // Closing must never be taken straight off the live Stock count/sheet, today included. It is built
+  // ONLY from the formula: Opening + Receiving - Sold - Return - Damage - Repair - Outlet Issue =
+  // Closing — the exact same additive math already used for a past date, now used for today too, so
+  // Closing always ties out to the columns actually shown on screen (each of those columns already
+  // counts straight from its own sheet — Receiving/Return/Damage Receive from Stock Level, Sold from
+  // DSR, Outlet Issue from the Outlet Issue sheet, Return/Damage/Repair from the RDR sheet).
   const list = Object.keys(groups).map(key => {
     const base = baseline(key);
-    const closingToday = isToday ? liveCount(key)
-      : (base + receivingUpto(key, dateVal) - saleUpto(key, dateVal) - outletUpto(key, dateVal) - rdrUpto(key, dateVal));
+    const closingToday = base + receivingUpto(key, dateVal) - saleUpto(key, dateVal) - outletUpto(key, dateVal) - rdrUpto(key, dateVal);
     const closingPrev = base + receivingUpto(key, prevDate) - saleUpto(key, prevDate) - outletUpto(key, prevDate) - rdrUpto(key, prevDate);
+    // v-fix (BRO: "all filds anni only tags count cheste saripotundi" — every one of these columns is
+    // just a straight count of the matching tags/rows on that exact date, read straight from each
+    // field's own sheet: Receiving/Return/Damage Receive from Stock Level, Sold from DSR, Outlet Issue
+    // from the Outlet Issue sheet, Return/Damage/Repair from the RDR sheet. Nothing derived or guessed —
+    // Closing alone is the one field built from a formula (Opening + these columns), never counted
+    // directly off a sheet, per BRO's explicit instruction above.
     const receiving = receivingOn(key, dateVal), sold = saleOn(key, dateVal), outlet = outletOn(key, dateVal);
     const ret = rdrReasonOn(key, dateVal, 'Return'), damage = rdrReasonOn(key, dateVal, 'Damage'), repair = rdrReasonOn(key, dateVal, 'Repair');
-    // v-add (BRO: "the system must never silently show a Closing quantity that cannot be explained by
-    // the visible stock movements... if there is a genuine unexplained difference, show it clearly" —
-    // for TODAY, Closing is the live physical Stock count (liveCount, most accurate — see the isToday
-    // comment above), while this formula-based expected value is built purely from the visible
-    // Receiving/Sold/Return/Damage/Repair/Outlet Issue columns on screen. Any gap between the two means
-    // something changed the physical count that none of those columns caught (an old tag re-tagged, a
-    // manual Stock edit, etc.) — surfaced as an explicit Diff instead of a silent mismatch.
-    const expectedClosing = closingPrev + receiving - sold - ret - damage - repair - outlet;
     return {
       product: groups[key].product, design: groups[key].design, key: key,
-      opening: closingPrev, closing: closingToday, expectedClosing, receiving, sold, ret, damage, repair, outlet
+      opening: closingPrev, closing: closingToday, receiving, sold, ret, damage, repair, outlet
     };
   }).sort((a, b) => a.product.localeCompare(b.product, undefined, { numeric: true, sensitivity: 'base' }) || a.design.localeCompare(b.design, undefined, { numeric: true, sensitivity: 'base' }));
 
@@ -1820,10 +1810,10 @@ async function ovLoadLedger() {
   // data cell alike, is centered, and no heading wraps to a 2nd line.
   // BRO: "all pages lo kinda totals ravali" — a totals row summing every column, at the bottom of the table.
   const tot = list.reduce((s, r) => {
-    s.opening += r.opening; s.closing += r.closing; s.expectedClosing += r.expectedClosing;
+    s.opening += r.opening; s.closing += r.closing;
     s.receiving += r.receiving; s.sold += r.sold; s.ret += r.ret; s.damage += r.damage; s.repair += r.repair; s.outlet += r.outlet;
     return s;
-  }, { opening: 0, closing: 0, expectedClosing: 0, receiving: 0, sold: 0, ret: 0, damage: 0, repair: 0, outlet: 0 });
+  }, { opening: 0, closing: 0, receiving: 0, sold: 0, ret: 0, damage: 0, repair: 0, outlet: 0 });
 
   // v-add (BRO's clickable stock-transaction-totals requirement) — one clickable <a> builder reused for
   // every category, per-product (pass a real key) AND for the TOTAL row (pass key=null, meaning "every
@@ -1849,22 +1839,11 @@ async function ovLoadLedger() {
     const damageCell = cell_(r.damage, 'ovShowDamageDetail_', r.key, label);
     const repairCell = cell_(r.repair, 'ovShowRepairDetail_', r.key, label);
     const outletCell = cell_(r.outlet, 'ovShowOutletDetail_', r.key, label);
-    // v-add (BRO: "opening and closing different 4 undi. aavi evi evi ani ela telustundi" — when a
-    // row's Opening and Closing don't match (TODAY only, since that's the only live-counted column),
-    // the Closing number is now clickable to see the actual Tag Nos sitting in stock for that
-    // Product(+Design) right now, each with its Entry Type/Entry Date — so whatever's causing the
-    // gap (an item added/edited in a way none of Receiving/Sold/Return/Damage/Repair/Outlet Issue
-    // caught) can be spotted by eye instead of staying a mystery number.
-    // v-fix (BRO: "meru ichina emoji+1 ani braket vastundi. ala vaddu. adi meaningless" — the real
-    // transaction, if one explains the gap, already shows as a number in its own column (Receiving/
-    // Sold/Return/Damage/Repair/Outlet Issue above); a separate "(Δ+1)" badge next to Closing added
-    // nothing an employee could act on, so it's removed. Closing stays clickable as the investigate-
-    // it-yourself fallback for any gap none of those columns explain.)
-    const diff = r.closing - r.expectedClosing;
-    const closingCell = (isToday && diff !== 0)
-      ? `<a href="#" onclick="ovShowStockTagsDetail_('${escJs(r.key)}','${escJs(properCase(r.product))}',${byDesign});return false;" style="color:var(--purple);font-weight:800;text-decoration:underline;">${r.closing}</a>`
-      : r.closing;
-    html += `<tr><td>${escHtml(properCase(r.product))}</td>${byDesign ? `<td>${escHtml(properCase(r.design) || '—')}</td>` : ''}<td style="text-align:center;">${r.opening}</td><td style="text-align:center;">${receivingCell}</td><td style="text-align:center;">${soldCell}</td><td style="text-align:center;">${retCell}</td><td style="text-align:center;">${damageCell}</td><td style="text-align:center;">${repairCell}</td><td style="text-align:center;">${outletCell}</td><td style="text-align:center;">${closingCell}</td></tr>`;
+    // v-fix (BRO: "closing data direct sheet nundi vaddu. closing data formula trhouga colunt hcei" —
+    // Closing is now always Opening + Receiving - Sold - Return - Damage - Repair - Outlet Issue, so it
+    // always ties out to the columns shown in this same row — nothing left unexplained, so no separate
+    // investigate-link or Δ marker is needed here any more.
+    html += `<tr><td>${escHtml(properCase(r.product))}</td>${byDesign ? `<td>${escHtml(properCase(r.design) || '—')}</td>` : ''}<td style="text-align:center;">${r.opening}</td><td style="text-align:center;">${receivingCell}</td><td style="text-align:center;">${soldCell}</td><td style="text-align:center;">${retCell}</td><td style="text-align:center;">${damageCell}</td><td style="text-align:center;">${repairCell}</td><td style="text-align:center;">${outletCell}</td><td style="text-align:center;">${r.closing}</td></tr>`;
   });
   // TOTAL row — v-add: every one of its transaction numbers is ALSO clickable (key=null = every product
   // in this counter combined), per BRO: "do NOT require the employee to click individual product rows
@@ -1928,25 +1907,6 @@ function ovShowRdrReasonDetail_(reason, icon, key, date, productLabel) {
 function ovShowReturnDetail_(key, date, productLabel) { ovShowRdrReasonDetail_('Return', '↩️', key, date, productLabel); }
 function ovShowDamageDetail_(key, date, productLabel) { ovShowRdrReasonDetail_('Damage', '⚠️', key, date, productLabel); }
 function ovShowRepairDetail_(key, date, productLabel) { ovShowRdrReasonDetail_('Repair', '🔧', key, date, productLabel); }
-
-// v-add (BRO: "opening and closing different 4 undi. aavi evi evi ani ela telustundi" — the Tag Nos
-// behind a mismatched Opening/Closing, straight from the live Stock snapshot (same data Closing itself
-// is counted from), sorted most-recently-added first so whatever's new stands out immediately.
-function ovShowStockTagsDetail_(key, productLabel, byDesign) {
-  const rows = STOCK_SNAPSHOT.filter(r => rowCounter_(r) === OV.curCounter && groupKeyForDetail_(r, byDesign) === key)
-    .slice().sort((a, b) => new Date(b.entryDate || b.addedAt || 0) - new Date(a.entryDate || a.addedAt || 0));
-  let inner = `<div style="font-weight:800;font-size:15px;margin-bottom:4px;">📦 ${escHtml(productLabel)} — Items In Stock Now</div>
-    <div class="note" style="text-align:left;padding:0 0 10px;">${rows.length} item${rows.length === 1 ? '' : 's'} — most recently added first.</div>`;
-  if (!rows.length) {
-    inner += '<div class="empty" style="padding:20px 0;">No items found.</div>';
-  } else {
-    inner += `<div class="ov-table-wrap"><table class="ledger-table"><thead><tr><th>Tag No</th><th>Entry Type</th><th>Entry Date</th></tr></thead><tbody>` +
-      rows.map(r => `<tr><td><b>${escHtml(r.tagNo || '—')}</b></td><td>${escHtml(r.entryType || '—')}</td><td>${escHtml(fmtDMY(r.entryDate))}</td></tr>`).join('') +
-      '</tbody></table></div>';
-  }
-  ovSimpleModal(inner);
-}
-function groupKeyForDetail_(r, byDesign) { return byDesign ? (r.productName + '|' + String(r.design || '').trim()) : r.productName; }
 
 // v-add (BRO: "stock phto file lo opening closing sold return ila anni icharu, danto patu receiving
 // kuda ivu. receiving ante stock entry form lo receiving dantlo enter chesina vi kavali. separata ga
