@@ -1534,7 +1534,8 @@ function ovLoadDetail() {
     if (!g[key]) g[key] = { product: r.productName, design: byDesign ? design : '', pcs: 0 };
     g[key].pcs += rowQty_(r);
   });
-  const list = Object.values(g).sort((a, b) => b.pcs - a.pcs);
+  // v-fix (BRO: "over viw lo chusinapudu product name sort avali" — Product (A→Z), not by count.
+  const list = Object.values(g).sort((a, b) => a.product.localeCompare(b.product, undefined, { numeric: true, sensitivity: 'base' }) || a.design.localeCompare(b.design, undefined, { numeric: true, sensitivity: 'base' }));
   if (!list.length) { body.innerHTML = '<div class="empty">No items.</div>'; return; }
   let totalPcs = 0;
   let html = `<div class="ov-table-wrap"><table class="ov-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:right;">Count</th></tr></thead><tbody>`;
