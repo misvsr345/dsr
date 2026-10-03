@@ -626,21 +626,17 @@ async function loadTagLookup() {
   const design = (cur && cur.design) || (latestSale && latestSale.design) || '';
   const weight = (cur && cur.weight) || (latestSale && latestSale.weight) || '';
   const photo = (cur && cur.photo) || (latestSale && latestSale.photoUrl) || '';
+  const itemType = (cur && cur.type) || (latestSale && latestSale.type) || '';
   TAG_LOOKUP_PHOTO = photo;
 
   // Counter — BRO: "counter name kuda ravali. counter name product batti stock level sheet nundi
   // tisukovali" (counter must come from the Stock Level sheet). If this exact tag is still in the
   // Stock/Sold snapshot, use its counter directly; otherwise (an old tag with no Stock Level row left)
-  // best-guess the counter from any OTHER Stock Level row of the same product.
-  let counter = '';
-  if (cur) {
-    counter = rowCounter_(cur);
-  } else if (productName) {
-    const pn = String(productName).trim().toLowerCase();
-    const sameProd = STOCK_SNAPSHOT.find(r => String(r.productName || '').trim().toLowerCase() === pn)
-      || SOLD_SNAPSHOT.find(r => String(r.productName || '').trim().toLowerCase() === pn);
-    if (sameProd) counter = rowCounter_(sameProd);
-  }
+  // best-guess the counter from any OTHER Stock Level row of the same product — see
+  // inferCounterForProduct_() below (matches on Product Name AND Type together, since BRO flagged the
+  // same Product Name can genuinely sit under two different counters, e.g. a plain Chain vs a Diamond
+  // Chain — matching on Product Name alone could borrow the wrong one's counter).
+  const counter = cur ? rowCounter_(cur) : inferCounterForProduct_(productName, itemType);
 
   const statusLabel = stockHit ? 'In Stock' : (soldHit ? 'Sold' : (latestSale ? 'Sold' : '—'));
   // v-add: shows whether the Status/Counter above is a live, just-now-confirmed backend answer, or
@@ -939,22 +935,48 @@ async function fetchFullSnapshot() {
 }
 // Best-guess Counter for a DSR-only sale (no Stock Level row of its own) — same approach the Tag
 // tab's loadTagLookup() already uses for old tags: find ANY other Stock/Sold row of the same Product
-// Name and borrow its Counter.
-function inferCounterForProduct_(productName) {
+// Name AND Type and borrow its Counter.
+// v-fix (BRO: "oka chain tisuko, dantlo diamond ki and chain counter ki untai" — the SAME Product
+// Name can genuinely sit under two different counters depending on Gold vs Diamond — e.g. a plain
+// "Chain" under Chain Counter, but a "Chain" that's actually a Diamond Chain under Diamond Counter.
+// Matching on Product Name alone could silently borrow the WRONG one's counter. Now matches on Product
+// Name + Type together first (Type comes from the Stock/Sold/DSR row itself, same as everywhere else
+// in this file — Gold/Diamond, set at entry time, not guessed); only falls back to Product Name alone
+// if no same-Type match exists at all, so there's still SOME counter shown rather than none.
+function inferCounterForProduct_(productName, type) {
   const pn = String(productName || '').trim().toLowerCase();
   if (!pn) return '';
-  const hit = STOCK_SNAPSHOT.find(r => String(r.productName || '').trim().toLowerCase() === pn)
-    || SOLD_SNAPSHOT.find(r => String(r.productName || '').trim().toLowerCase() === pn);
+  const typeNorm = String(type || '').trim().toLowerCase();
+  const matchesPn = r => String(r.productName || '').trim().toLowerCase() === pn;
+  const matchesType = r => String(r.type || '').trim().toLowerCase() === typeNorm;
+  const hit = STOCK_SNAPSHOT.find(r => matchesPn(r) && matchesType(r))
+    || SOLD_SNAPSHOT.find(r => matchesPn(r) && matchesType(r))
+    || STOCK_SNAPSHOT.find(matchesPn)
+    || SOLD_SNAPSHOT.find(matchesPn);
   return hit ? rowCounter_(hit) : '';
 }
 function derivedDsrPhotoTiles_() {
-  const haveTag = new Set(STOCK_PHOTO_BASE.filter(r => r.tagNo).map(r => normTag(r.tagNo)));
+  // v-fix (BRO: "old stock avani, new stock avani... chupinchadaniki" — dedupe only against a Stock
+  // Level row that is ITSELF already Sold under this exact Tag No (that's the same single sale event,
+  // already covered). A Tag No that's currently "instock" in Stock Level (a reused tag, new item) must
+  // NOT suppress an older DSR sale of that same tag number — that older sale is a different, real past
+  // event and is exactly the "old stock" BRO wants kept visible, not hidden because the tag got reused.
+  const haveSoldTag = new Set(STOCK_PHOTO_BASE.filter(r => r.tagNo && r.status === 'sold').map(r => normTag(r.tagNo)));
   return DSR_SNAPSHOT
-    .filter(r => r.photoUrl && !(r.tagNo && haveTag.has(normTag(r.tagNo))))
+    .filter(r => r.photoUrl && !(r.tagNo && haveSoldTag.has(normTag(r.tagNo))))
     .map(r => ({
       status: 'sold', photo: r.photoUrl, tagNo: r.tagNo || '', productName: r.productName || '',
       design: r.design || '', type: r.type || '', weight: r.weight || '',
-      counter: inferCounterForProduct_(r.productName), soldDate: r.billDate || '', addedAt: r.billDate || ''
+      // v-fix ("vatini ela filter chestharu, ela find chestharu" — a Product Name with genuinely no
+      // same-name Stock Level record at all now gets an explicit "Unknown Counter" bucket instead of a
+      // blank counter, so it still shows up (and is still filterable) under its own Counter option
+      // instead of silently disappearing the moment someone filters by a specific counter.
+      counter: inferCounterForProduct_(r.productName, r.type) || 'Unknown Counter',
+      soldDate: r.billDate || '', addedAt: r.billDate || '',
+      // v-add (BRO: "phtos file lo old dsr nundi vachina photo ani ela telustundi" — marks a tile that
+      // came from this DSR merge (no Stock Level row of its own), so tileHtml/infoHtml below can show
+      // it clearly instead of looking identical to a normal Stock Level Sold tile.
+      source: 'dsr', customerName: r.customerName || '', dsrId: r.dsrId || ''
     }));
 }
 function rebuildPhotoPool() {
@@ -1313,10 +1335,14 @@ function loadMore() { VISIBLE.count = Math.min(VISIBLE.count + PH.limit, PH.item
 
 function tileHtml(r, idx) {
   const pill = r.status === 'sold' ? '<span class="pill" style="background:var(--red);">SOLD</span>' : '<span class="pill" style="background:var(--green);">STOCK</span>';
+  // v-add (BRO: "phtos file lo old dsr nundi vachina photo ani ela telustundi" — a small badge, top
+  // right (so it never collides with the SOLD/STOCK pill, top left), on every tile that came from this
+  // DSR Main/Archive merge rather than the Stock Level sheet's own Sold tracking.
+  const dsrBadge = r.source === 'dsr' ? '<span class="pill" style="background:var(--purple);right:4px;left:auto;">DSR</span>' : '';
   const label = r.tagNo || properCase(r.productName) || 'Item';
   return `<div class="tile" data-photo="${escHtml(r.photo || '')}" onclick="openViewer(${idx})">
       <img alt="${escHtml(label)}">
-      ${pill}
+      ${pill}${dsrBadge}
       <div class="tag">${escHtml(label)}</div>
     </div>`;
 }
@@ -1513,7 +1539,13 @@ function infoHtml(r) {
     isDia ? ['Carat', r.carat] : null, isDia ? ['Clarity', r.clarity] : null, isDia ? ['Color', r.color] : null,
     sizeRow,
     ['Counter', properCase(r.counter)],
-    r.status === 'sold' ? ['Sold Date', fmtDMY(r.soldDate)] : null
+    r.status === 'sold' ? ['Sold Date', fmtDMY(r.soldDate)] : null,
+    // v-add (BRO: "phtos file lo old dsr nundi vachina photo ani ela telustundi" — spells out the
+    // source for a DSR-merged tile (the small "DSR" badge on the tile itself is the quick visual cue;
+    // this is the full explanation once the photo is open).
+    r.source === 'dsr' ? ['Source', 'DSR Entry (no separate Stock Level record)', true] : null,
+    r.source === 'dsr' && r.customerName ? ['Customer', properCase(r.customerName)] : null,
+    r.source === 'dsr' && r.dsrId ? ['DSR No', r.dsrId] : null
   ].filter(Boolean);
   return `<table class="info">` +
     rows.map(([l, v, hl]) => `<tr${hl ? ' class="hl"' : ''}><td class="lbl">${escHtml(l)}</td><td class="val">${escHtml(v == null || v === '' ? '—' : v)}</td></tr>`).join('') +
