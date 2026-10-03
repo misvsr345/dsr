@@ -244,9 +244,17 @@
       <div><label>To Wt</label><select id="phWtTo" onchange="applyFiltersAndRender()"><option>100</option></select></div>
     </div>
     <div class="filters">
-      <div class="full"><label>Search</label><input type="text" id="phQ" placeholder="Tag No or Product name..." autocomplete="off" oninput="applyFiltersAndRender()" onkeydown="if(event.key==='Enter')applyFiltersAndRender()"></div>
+      <div class="full"><label>Search</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="phQ" placeholder="Tag No or Product name..." autocomplete="off" style="flex:1 1 auto;min-width:0;" oninput="applyFiltersAndRender()" onkeydown="if(event.key==='Enter')applyFiltersAndRender()">
+          <button type="button" class="btn btn-sec" onclick="phQClear()" title="Clear" style="width:auto;flex:0 0 auto;padding:0 14px;">✕</button>
+        </div>
+      </div>
     </div>
-    <button class="btn" onclick="applyFiltersAndRender()">🔍 Show Photos</button>
+    <div style="display:flex;gap:8px;">
+      <button class="btn" style="flex:1 1 auto;" onclick="applyFiltersAndRender()">🔍 Show Photos</button>
+      <button class="btn btn-sec" onclick="phResetFilters()" title="Reset all filters" style="width:auto;flex:0 0 auto;padding:0 14px;">↺ Reset</button>
+    </div>
   </div>
 
   <div id="grid" class="grid"></div>
@@ -263,7 +271,12 @@
     <div class="tab-heading" style="border-bottom-color:var(--acc-tag);color:var(--acc-tag);">🏷️ Tag No Lookup</div>
     <div class="card">
       <div class="filters">
-        <div class="full"><label>Tag No</label><input type="text" id="tagLookupQ" placeholder="Enter Tag No..." autocomplete="off" onkeydown="if(event.key==='Enter'){loadTagLookup();}"></div>
+        <div class="full"><label>Tag No</label>
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="tagLookupQ" placeholder="Enter Tag No..." autocomplete="off" style="flex:1 1 auto;min-width:0;" onkeydown="if(event.key==='Enter'){loadTagLookup();}">
+            <button type="button" class="btn btn-sec" onclick="tagLookupClear()" title="Clear" style="width:auto;flex:0 0 auto;padding:0 14px;">✕</button>
+          </div>
+        </div>
       </div>
       <button class="btn" onclick="loadTagLookup()">🔍 Search</button>
     </div>
@@ -1086,6 +1099,30 @@ function filtersChanged(which) {
     reloadDimFilters();
   }
   applyFiltersAndRender();
+}
+// v-add (BRO: "tag no or ediana enter chesaka, malli old stage ravali... x mark pettu, click cheste
+// remove avali" — same Clear/Reset pattern added to the main portal's search boxes, applied here too.
+function phQClear() {
+  const inp = document.getElementById('phQ');
+  if (inp) { inp.value = ''; inp.focus(); }
+  applyFiltersAndRender();
+}
+function phResetFilters() {
+  const statusSel = document.getElementById('phStatus'); if (statusSel) statusSel.value = 'instock';
+  const counterSel = document.getElementById('phCounter'); if (counterSel) counterSel.value = '';
+  const q = document.getElementById('phQ'); if (q) q.value = '';
+  const wtOn = document.getElementById('phWtRangeOn'); if (wtOn) wtOn.checked = false;
+  const wtBox = document.getElementById('phWtRangeBox'); if (wtBox) wtBox.style.display = 'none';
+  const wtFrom = document.getElementById('phWtFrom'); if (wtFrom) wtFrom.value = '0';
+  const wtTo = document.getElementById('phWtTo'); if (wtTo) wtTo.value = '100';
+  reloadProductOptions(); // cascades into reloadDimFilters() too
+  applyFiltersAndRender();
+}
+function tagLookupClear() {
+  const inp = document.getElementById('tagLookupQ');
+  if (inp) { inp.value = ''; inp.focus(); }
+  const body = document.getElementById('tagLookupBody'); if (body) body.innerHTML = '';
+  TAG_LOOKUP_PHOTO = '';
 }
 function renderFiltersFromData() {
   const counterSel = document.getElementById('phCounter');
