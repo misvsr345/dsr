@@ -468,6 +468,14 @@ const STORE_ADDRESS_LINES = [
 const PH = { items: [], openIdx: -1, limit: 60 };
 const VISIBLE = { count: 0 };
 let ALL_ITEMS = [];
+// v-add (BRO: "already sale aina products, product name batti related counter lo chupinchali... dsr
+// main and archive lo unna vi kuda chupinchali... tag unna lekunna... photo tab lo and tag search lo
+// matrame ravali, remaining dagara avasaram ledu" — ALL_ITEMS (the Photos tab's own item pool) is now
+// built from STOCK_PHOTO_BASE (pure Stock Level sheet rows, exactly as before) PLUS every DSR Main/
+// Archive sale that has a photo and isn't already covered by a Stock Level row with the same Tag No —
+// see rebuildPhotoPool() below. Overview/Sold Data/Receiving/RDR are untouched (they read STOCK_
+// SNAPSHOT/SOLD_SNAPSHOT directly, never ALL_ITEMS), exactly as BRO asked.
+let STOCK_PHOTO_BASE = [];
 document.getElementById('storeAddr').innerHTML = STORE_ADDRESS_LINES.join('<br>');
 
 function escHtml(s) {
@@ -899,6 +907,9 @@ async function refreshOverviewSnapshots() {
     idbSet('meta', 'stockSnapshot', { rows: stockRows, fetchedAt: Date.now() });
     idbSet('meta', 'soldSnapshot', { rows: soldRows, fetchedAt: Date.now() });
     idbSet('meta', 'dsrSnapshot', { rows: dsrRows, fetchedAt: Date.now() });
+    // DSR_SNAPSHOT just changed — re-merge the Photos tab's item pool (see rebuildPhotoPool()) so any
+    // DSR-only sold tiles stay current too, not just Overview/Sold Data below.
+    rebuildPhotoPool();
     // If Overview/Sold Data is the tab currently open, refresh what's already on screen with the new data.
     if (document.getElementById('tabOverview').style.display !== 'none') {
       if (OV.curCounter) { ovLoadDimOptions(); ovLoadDetail(); }
@@ -926,14 +937,38 @@ async function fetchFullSnapshot() {
   }
   return rows;
 }
+// Best-guess Counter for a DSR-only sale (no Stock Level row of its own) — same approach the Tag
+// tab's loadTagLookup() already uses for old tags: find ANY other Stock/Sold row of the same Product
+// Name and borrow its Counter.
+function inferCounterForProduct_(productName) {
+  const pn = String(productName || '').trim().toLowerCase();
+  if (!pn) return '';
+  const hit = STOCK_SNAPSHOT.find(r => String(r.productName || '').trim().toLowerCase() === pn)
+    || SOLD_SNAPSHOT.find(r => String(r.productName || '').trim().toLowerCase() === pn);
+  return hit ? rowCounter_(hit) : '';
+}
+function derivedDsrPhotoTiles_() {
+  const haveTag = new Set(STOCK_PHOTO_BASE.filter(r => r.tagNo).map(r => normTag(r.tagNo)));
+  return DSR_SNAPSHOT
+    .filter(r => r.photoUrl && !(r.tagNo && haveTag.has(normTag(r.tagNo))))
+    .map(r => ({
+      status: 'sold', photo: r.photoUrl, tagNo: r.tagNo || '', productName: r.productName || '',
+      design: r.design || '', type: r.type || '', weight: r.weight || '',
+      counter: inferCounterForProduct_(r.productName), soldDate: r.billDate || '', addedAt: r.billDate || ''
+    }));
+}
+function rebuildPhotoPool() {
+  ALL_ITEMS = STOCK_PHOTO_BASE.concat(derivedDsrPhotoTiles_());
+  renderFiltersFromData();
+  applyFiltersAndRender();
+}
 async function refreshSnapshot() {
   if (!navigator.onLine) return;
   try {
     const rows = await fetchFullSnapshot();
-    ALL_ITEMS = rows;
+    STOCK_PHOTO_BASE = rows;
     idbSet('meta', 'snapshot', { rows, fetchedAt: Date.now() });
-    renderFiltersFromData();
-    applyFiltersAndRender();
+    rebuildPhotoPool();
     prefetchAllImages(); // background — saves every photo locally, not just the ones actually opened
   } catch (e) {
     if (!ALL_ITEMS.length) {
@@ -990,22 +1025,23 @@ async function initApp() {
   updateOnlineBanner();
   const cached = await idbGet('meta', 'snapshot');
   if (cached && cached.rows && cached.rows.length) {
-    ALL_ITEMS = cached.rows;
-    renderFiltersFromData();
-    applyFiltersAndRender();
+    STOCK_PHOTO_BASE = cached.rows;
   } else {
     document.getElementById('grid').innerHTML = '<div class="loading"><span class="spinner"></span>Loading...</div>';
   }
-  refreshSnapshot();
 
-  // v-add: load whatever Overview/Sold Data was cached last time (works offline immediately), then try
-  // a live refresh in the background if online.
+  // v-add: load whatever Overview/Sold Data (and DSR) was cached last time (works offline immediately)
+  // BEFORE the first render below, so the Photos tab's DSR-only tiles are already merged in on the very
+  // first paint, not just after the background refresh finishes a moment later.
   const cachedStock = await idbGet('meta', 'stockSnapshot');
   if (cachedStock && cachedStock.rows) STOCK_SNAPSHOT = cachedStock.rows;
   const cachedSold = await idbGet('meta', 'soldSnapshot');
   if (cachedSold && cachedSold.rows) SOLD_SNAPSHOT = cachedSold.rows;
   const cachedDsr = await idbGet('meta', 'dsrSnapshot');
   if (cachedDsr && cachedDsr.rows) DSR_SNAPSHOT = cachedDsr.rows;
+
+  if (STOCK_PHOTO_BASE.length) rebuildPhotoPool();
+  refreshSnapshot();
   refreshOverviewSnapshots();
 
   // BRO: "stock phto file open chesina ventane overview ravali" — Overview is now the tab shown the
