@@ -455,7 +455,12 @@ const STOCK_GAS_URL = "https://script.google.com/macros/s/AKfycbyZR0GpuTCgy2ErrF
 const DSR_GAS_URL = "https://script.google.com/macros/s/AKfycbw19KcGbJEee6EK4YnznC0xa9inkJl-GOPhywR8xzyzIPY0-SqBHFSEktS_z4tdLZKA/exec";
 function dsrApi(params) {
   const qs = Object.entries(params).map(([k, v]) => k + '=' + encodeURIComponent(v == null ? '' : v)).join('&');
-  return fetch(DSR_GAS_URL + '?' + qs).then(r => r.json());
+  // v-fix (BRO: "sync chesina ravadam ledu, chala sepatiki vachindi" — repeated Sync/poll calls were
+  // being silently served a STALE response from the browser's own HTTP cache, since every identical
+  // action+params GET looked like "the same request" to the browser and Apps Script's response carries
+  // no cache-control header telling it not to. cache: 'no-store' forces every single call here to
+  // actually hit the network, so Sync - and the 8-second auto-poll - now always get fresh data.
+  return fetch(DSR_GAS_URL + '?' + qs, { cache: 'no-store' }).then(r => r.json());
 }
 
 // Store details shown in the footer at the bottom of the page.
@@ -524,7 +529,10 @@ function normTag(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g,
 function fmtWt(v) { if (v == null || v === '') return ''; const n = parseFloat(v); return isNaN(n) ? String(v) : n.toFixed(3); }
 function api(params) {
   const qs = Object.entries(params).map(([k, v]) => k + '=' + encodeURIComponent(v == null ? '' : v)).join('&');
-  return fetch(STOCK_GAS_URL + '?' + qs).then(r => r.json());
+  // v-fix: same browser-HTTP-cache fix as dsrApi() above - every Stock backend call (listStock,
+  // photoGallery, lastModified, etc.) now always goes to the network instead of possibly returning a
+  // stale cached response.
+  return fetch(STOCK_GAS_URL + '?' + qs, { cache: 'no-store' }).then(r => r.json());
 }
 
 // v-add (BRO: "anni tab lopala tag no serch vaddu photo tab tappa. photo tab pakkaana tag ani tab
@@ -1826,8 +1834,10 @@ function loadReceivingData() {
   const counter = document.getElementById('recvCounter').value;
   let rows = allEntryRows_().filter(r => r.entryType === 'Receiving Stock' && r.entryDate && r.entryDate >= range.start && r.entryDate <= range.end);
   if (counter) rows = rows.filter(r => rowCounter_(r) === counter);
-  // Most recently received first.
-  rows = rows.slice().sort((a, b) => new Date(b.addedAt || b.entryDate || 0) - new Date(a.addedAt || a.entryDate || 0));
+  // v-fix (BRO: "tag no sort avali" — was sorted by addedAt (entry order), so Tag Nos appeared jumbled
+  // within the same batch/date. Now sorted by Tag No itself, ascending, numeric-aware (SAN559, SAN565,
+  // SAN572 ... SAN661, not SAN559, SAN600, SAN590 ...).
+  rows = rows.slice().sort((a, b) => String(a.tagNo || '').localeCompare(String(b.tagNo || ''), undefined, { numeric: true, sensitivity: 'base' }));
 
   if (!rows.length) {
     summary.textContent = '';
