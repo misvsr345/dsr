@@ -2000,6 +2000,19 @@ function loadSoldData() {
   if (soldCounter) rows = rows.filter(r => (r.counter || '').trim() === soldCounter);
   // v-add (BRO: "date ni sort chei" — newest first, same convention as the RDR tab's date sort.
   rows = rows.slice().sort((a, b) => new Date(b.soldDate || 0) - new Date(a.soldDate || 0));
+  // v-fix (BRO: "duplicate tag no vachinapudu danni 2 pcs luga ela count chestaru, duplicate aina adi
+  // one pc matrame kada" — a Tag No that appears more than once here (e.g. the DSR duplicate-entry bug)
+  // is still physically ONE item, so it should count as ONE piece, not two. Keep only the first
+  // occurrence of each Tag No after the date-sort above (so the newest-dated copy is the one kept).
+  // Items with no Tag No (untagged Silver, etc.) can't be identified this way, so those are left as-is.
+  const seenSoldTags = new Set();
+  rows = rows.filter(r => {
+    const t = normTag(r.tagNo);
+    if (!t) return true;
+    if (seenSoldTags.has(t)) return false;
+    seenSoldTags.add(t);
+    return true;
+  });
   if (!rows.length) { body.innerHTML = '<div class="empty">No items sold in this range.</div>'; summary.textContent = ''; return; }
   let pcs = 0;
   rows.forEach(r => pcs += rowQty_(r));
