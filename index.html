@@ -336,6 +336,9 @@
         <div><label>Start Date</label><input type="date" id="soldStart"></div>
         <div><label>End Date</label><input type="date" id="soldEnd"></div>
       </div>
+      <div class="filters">
+        <div><label>Counter</label><select id="soldCounter"><option value="">All</option></select></div>
+      </div>
       <button class="btn" onclick="loadSoldData()" style="margin-top:6px;">🔍 Show Sold Items</button>
     </div>
     <div id="soldSummary" class="note"></div>
@@ -1835,9 +1838,14 @@ function loadReceivingData() {
   let rows = allEntryRows_().filter(r => r.entryType === 'Receiving Stock' && r.entryDate && r.entryDate >= range.start && r.entryDate <= range.end);
   if (counter) rows = rows.filter(r => rowCounter_(r) === counter);
   // v-fix (BRO: "tag no sort avali" — was sorted by addedAt (entry order), so Tag Nos appeared jumbled
-  // within the same batch/date. Now sorted by Tag No itself, ascending, numeric-aware (SAN559, SAN565,
-  // SAN572 ... SAN661, not SAN559, SAN600, SAN590 ...).
-  rows = rows.slice().sort((a, b) => String(a.tagNo || '').localeCompare(String(b.tagNo || ''), undefined, { numeric: true, sensitivity: 'base' }));
+  // within the same batch/date. Now sorted by Date first (newest first, same as Sold Data), and within
+  // the same date, by Tag No ascending, numeric-aware (SAN559, SAN565, SAN572 ... SAN661, not SAN559,
+  // SAN600, SAN590 ...).
+  rows = rows.slice().sort((a, b) => {
+    const d = new Date(b.entryDate || 0) - new Date(a.entryDate || 0);
+    if (d !== 0) return d;
+    return String(a.tagNo || '').localeCompare(String(b.tagNo || ''), undefined, { numeric: true, sensitivity: 'base' });
+  });
 
   if (!rows.length) {
     summary.textContent = '';
@@ -1961,7 +1969,16 @@ function dateRangeForMode_(modeObj, startId, endId) {
   if (modeObj.mode === 'yesterday') { const d = prevDateStr_(todayStr_ph()); return { start: d, end: d }; }
   const d = todayStr_ph(); return { start: d, end: d };
 }
+// v-add (BRO: "counter filtger kuda kavali, so daniki drop dwon ivu" — same Counter dropdown the
+// Receiving/RDR tabs already have, now on Sold Data too.
+function populateSoldCounterOptions_() {
+  const sel = document.getElementById('soldCounter');
+  if (!sel || sel.dataset.filled) return;
+  sel.innerHTML = '<option value="">All Counters</option>' + KNOWN_COUNTERS.map(c => `<option>${escHtml(c)}</option>`).join('');
+  sel.dataset.filled = '1';
+}
 function loadSoldData() {
+  populateSoldCounterOptions_();
   const body = document.getElementById('soldBody'), summary = document.getElementById('soldSummary');
   let start, end;
   if (SOLD.mode === 'custom') {
@@ -1978,7 +1995,11 @@ function loadSoldData() {
     summary.textContent = '';
     return;
   }
-  const rows = SOLD_SNAPSHOT.filter(r => r.soldDate >= start && r.soldDate <= end);
+  const soldCounter = document.getElementById('soldCounter').value;
+  let rows = SOLD_SNAPSHOT.filter(r => r.soldDate >= start && r.soldDate <= end);
+  if (soldCounter) rows = rows.filter(r => (r.counter || '').trim() === soldCounter);
+  // v-add (BRO: "date ni sort chei" — newest first, same convention as the RDR tab's date sort.
+  rows = rows.slice().sort((a, b) => new Date(b.soldDate || 0) - new Date(a.soldDate || 0));
   if (!rows.length) { body.innerHTML = '<div class="empty">No items sold in this range.</div>'; summary.textContent = ''; return; }
   let pcs = 0;
   rows.forEach(r => pcs += rowQty_(r));
