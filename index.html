@@ -1623,6 +1623,27 @@ function ovLoadTiles() {
       <div class="ov-count">${totals[c]}</div>
       <div class="ov-unit">PCS IN STOCK</div>
     </div>`).join('') + `<div class="note" style="grid-column:1/-1;text-align:right;padding-top:8px;">Total: <b>${grandTotal} pcs</b></div>`;
+  // v-add (BRO: "eroju 100pc unna, repu change vachina — enduku different vachindo alert ravali, aa tab
+  // lopala hilite color tho hilite avali" — daily counter-total mismatch check. Fetched live (not from
+  // the offline snapshot) so it reflects today's 1 PM check; any mismatched counter's tile gets a red
+  // highlight + a short reason, so staff can cross-check right from the Overview tab itself.
+  ovApplyMismatchHighlights_();
+}
+
+async function ovApplyMismatchHighlights_() {
+  let res;
+  try { res = await api({ action: 'stockMismatchFlags' }); } catch (e) { return; }
+  if (!res || !res.ok || !res.flags) return;
+  Object.keys(res.flags).forEach(c => {
+    const f = res.flags[c];
+    if (!f.mismatch) return;
+    const tile = document.querySelector(`.ov-tile[data-counter="${CSS.escape(c)}"]`);
+    if (!tile) return;
+    tile.style.background = '#d9362b';
+    tile.style.boxShadow = '0 0 0 2px #ffb3ab inset';
+    tile.title = f.note || 'Mismatch — please cross-check this counter.';
+    tile.innerHTML += `<div style="font-size:10px;color:#fff;font-weight:800;margin-top:4px;">⚠ CHECK: ${escHtml(String(f.actual))} vs expected ${escHtml(String(f.expected))}</div>`;
+  });
 }
 
 function ovBackToTiles() {
@@ -1696,13 +1717,39 @@ function ovLoadDetail() {
   const list = Object.values(g).sort((a, b) => a.product.localeCompare(b.product, undefined, { numeric: true, sensitivity: 'base' }) || a.design.localeCompare(b.design, undefined, { numeric: true, sensitivity: 'base' }));
   if (!list.length) { body.innerHTML = '<div class="empty">No items.</div>'; return; }
   let totalPcs = 0;
-  let html = `<div class="ov-table-wrap"><table class="ov-table"><thead><tr><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:right;">Count</th></tr></thead><tbody>`;
+  // v-add (BRO: "every product ki oka check box ivu. adi click cheste, dani qty lu total avali. default
+  // ga all selected ga undali. evi select chesthe, dani total count oka hilite box lo color change
+  // chei" — a checkbox per product row, all checked by default; the highlighted box below always shows
+  // the sum of only the CHECKED rows, and its color changes once the selection is no longer "all".
+  let html = `<div class="ov-table-wrap"><table class="ov-table"><thead><tr><th style="width:30px;"><input type="checkbox" id="ovSelectAllChk" checked onchange="ovToggleAllChk_(this.checked)"></th><th>Product</th>${byDesign ? '<th>Design</th>' : ''}<th style="text-align:right;">Count</th></tr></thead><tbody>`;
   list.forEach(r => {
     totalPcs += r.pcs;
-    html += `<tr><td>${escHtml(properCase(r.product))}</td>${byDesign ? `<td>${escHtml(properCase(r.design) || '—')}</td>` : ''}<td style="text-align:right;">${r.pcs}</td></tr>`;
+    html += `<tr><td><input type="checkbox" class="ovRowChk" data-pcs="${r.pcs}" checked onchange="ovUpdateSelectedTotal_()"></td><td>${escHtml(properCase(r.product))}</td>${byDesign ? `<td>${escHtml(properCase(r.design) || '—')}</td>` : ''}<td style="text-align:right;">${r.pcs}</td></tr>`;
   });
-  html += `</tbody></table></div><div class="note" style="text-align:right;padding-top:8px;">Total: <b>${totalPcs} pcs</b></div>`;
+  html += `</tbody></table></div>
+    <div id="ovSelectedTotalBox" class="note" style="text-align:right;padding:8px 10px;margin-top:6px;border-radius:8px;font-weight:700;"></div>
+    <div class="note" style="text-align:right;padding-top:4px;">Total: <b>${totalPcs} pcs</b></div>`;
   body.innerHTML = html;
+  ovUpdateSelectedTotal_();
+}
+
+function ovToggleAllChk_(checked) {
+  document.querySelectorAll('.ovRowChk').forEach(cb => { cb.checked = checked; });
+  ovUpdateSelectedTotal_();
+}
+
+function ovUpdateSelectedTotal_() {
+  const box = document.getElementById('ovSelectedTotalBox');
+  if (!box) return;
+  const all = Array.from(document.querySelectorAll('.ovRowChk'));
+  const checked = all.filter(cb => cb.checked);
+  const sum = checked.reduce((s, cb) => s + (parseFloat(cb.dataset.pcs) || 0), 0);
+  const selectAllChk = document.getElementById('ovSelectAllChk');
+  if (selectAllChk) selectAllChk.checked = (checked.length === all.length);
+  const isPartial = checked.length < all.length;
+  box.style.background = isPartial ? '#e6d9fb' : '#fff3cd';
+  box.style.color = isPartial ? '#4a2a8a' : '#8a5a00';
+  box.textContent = `Selected Total: ${sum} pcs (${checked.length}/${all.length} products)`;
 }
 
 // ============================================================
