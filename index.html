@@ -1749,7 +1749,7 @@ function ovUpdateSelectedTotal_() {
   const isPartial = checked.length < all.length;
   box.style.background = isPartial ? '#e6d9fb' : '#fff3cd';
   box.style.color = isPartial ? '#4a2a8a' : '#8a5a00';
-  box.textContent = `Selected Total: ${sum} pcs (${checked.length}/${all.length} products)`;
+  box.textContent = isPartial ? `Selected Pcs: ${sum}` : `Total Pcs: ${sum}`;
 }
 
 // ============================================================
