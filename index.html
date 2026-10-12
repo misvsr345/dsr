@@ -30,8 +30,20 @@
   header .brandline{display:flex;align-items:center;gap:2px;}
   /* v-add (BRO: "vsr ims file ki kuda logo add cehi... stock level file setting tab lo unna logo
      ni tisuko" — same shared Store Settings logo the main portal's login page uses, fetched live
-     from StockBackend.gs, shown just above the "VSR IMS" title. */
-  #imsLogo{display:none;width:56px;height:56px;object-fit:contain;border-radius:12px;background:#fff;padding:3px;margin-bottom:6px;box-shadow:0 1px 6px rgba(0,0,0,.25);}
+     from StockBackend.gs, shown just above the "VSR IMS" title. v-fix (BRO: "logo ekada undi" —
+     the image tag used to start display:none and only get unhidden once the fetch actually
+     succeeded, so a slow/failed fetch meant nothing showed at all, with no way to tell why. Now a
+     gold ✦ placeholder mark shows immediately (same kind the main portal uses before its own logo
+     loads), swapped for the real uploaded photo the moment the fetch resolves — so something is
+     always visible, and if the real logo still doesn't appear it means Store Settings itself has
+     no logoUrl saved yet, not that this code failed. */
+  /* v-fix (BRO: "vsr ims paina kakunda, left lo chivara empty place lo pettu" — moved off the
+     centered column above the title into the empty top-left corner of the header, same way
+     headerSyncBtn already sits absolutely positioned in the top-right corner. */
+  .ims-logo-mark{position:absolute;top:12px;left:14px;width:44px;height:44px;margin:0;display:flex;align-items:center;justify-content:center;}
+  .ims-logo-mark::before{content:'✦';display:block;font-size:32px;line-height:1;background:linear-gradient(135deg,#F0D98A,var(--gold) 55%,#8A6A1E);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 1px 3px rgba(212,175,55,.5));}
+  .ims-logo-mark.has-logo::before{content:none;}
+  .ims-logo-mark img{width:100%;height:100%;object-fit:contain;border-radius:12px;background:#fff;padding:3px;box-shadow:0 1px 6px rgba(0,0,0,.25);display:block;}
   /* v-add (BRO: "vsr ims kuda vsr connect laga hilite ga undali" — same curved, outline-only
      (no fill) highlight box used for "VSR CONNECT" on the main portal's login page, adapted for
      this file's dark header: gold border, no fill, text stays the header's own white. */
@@ -197,7 +209,7 @@
 <div class="frame">
 <header>
   <button id="headerSyncBtn" onclick="headerRefreshSync()" title="Refresh &amp; Sync — fetch the latest data now"><span class="hs-ic">🔄</span><span class="hs-lbl">Sync</span></button>
-  <img id="imsLogo" alt="VSR GOLD">
+  <div class="ims-logo-mark" id="imsLogoMark"></div>
   <div class="brandline"><span class="ims-highlight">VSR IMS</span></div>
   <small>Inventory Management System</small>
 </header>
@@ -2126,10 +2138,16 @@ populateWtRangeOptions(); // fixed 0–100 list, doesn't need any data loaded fi
 // still shows on repeat visits even before this fetch finishes or if opened offline.
 const IMS_LOGO_CACHE_KEY = 'vsrImsLogoUrl';
 function applyImsLogo_(url) {
-  const img = document.getElementById('imsLogo');
-  if (!img || !url) return;
+  const mark = document.getElementById('imsLogoMark');
+  if (!mark || !url) return;
+  let img = mark.querySelector('img');
+  if (!img) {
+    img = document.createElement('img');
+    img.alt = 'VSR GOLD';
+    mark.appendChild(img);
+  }
   img.src = url;
-  img.style.display = '';
+  mark.classList.add('has-logo');
 }
 function loadImsLogo_() {
   try {
