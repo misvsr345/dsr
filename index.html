@@ -28,8 +28,14 @@
   .frame{max-width:1000px;margin:0 auto;min-height:100vh;background:var(--card);border:1px solid var(--border);box-shadow:0 0 40px rgba(11,46,107,.10);}
   header{background:var(--purple);color:#fff;padding:18px 16px 16px;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;position:sticky;top:0;z-index:10;box-shadow:0 2px 10px rgba(0,0,0,.18);border-bottom:3px solid var(--gold);}
   header .brandline{display:flex;align-items:center;gap:2px;}
-  header .brandline::before,header .brandline::after{content:'';width:22px;height:1px;background:var(--gold);opacity:.7;}
-  header .title{font-weight:800;font-size:19px;letter-spacing:2.5px;padding:0 8px;}
+  /* v-add (BRO: "vsr ims file ki kuda logo add cehi... stock level file setting tab lo unna logo
+     ni tisuko" — same shared Store Settings logo the main portal's login page uses, fetched live
+     from StockBackend.gs, shown just above the "VSR IMS" title. */
+  #imsLogo{display:none;width:56px;height:56px;object-fit:contain;border-radius:12px;background:#fff;padding:3px;margin-bottom:6px;box-shadow:0 1px 6px rgba(0,0,0,.25);}
+  /* v-add (BRO: "vsr ims kuda vsr connect laga hilite ga undali" — same curved, outline-only
+     (no fill) highlight box used for "VSR CONNECT" on the main portal's login page, adapted for
+     this file's dark header: gold border, no fill, text stays the header's own white. */
+  .ims-highlight{display:inline-block;font-weight:800;font-size:19px;letter-spacing:2.5px;padding:5px 18px;border-radius:14px;border:2px solid var(--gold);background:none;color:#fff;}
   header small{display:block;font-size:10.5px;font-weight:600;color:var(--gold);letter-spacing:1.6px;margin-top:5px;text-transform:uppercase;}
   /* v-add (BRO: "header lo refresh+sync kalipi oka button ivu. click cheste backend lo jarigina
      update ventane vachi, data load avvakapoina data vastundi" — one always-visible header button
@@ -191,7 +197,8 @@
 <div class="frame">
 <header>
   <button id="headerSyncBtn" onclick="headerRefreshSync()" title="Refresh &amp; Sync — fetch the latest data now"><span class="hs-ic">🔄</span><span class="hs-lbl">Sync</span></button>
-  <div class="brandline"><div class="title">VSR IMS</div></div>
+  <img id="imsLogo" alt="VSR GOLD">
+  <div class="brandline"><span class="ims-highlight">VSR IMS</span></div>
   <small>Inventory Management System</small>
 </header>
 <div id="offlineBanner">📴 Offline — showing saved photos</div>
@@ -2112,6 +2119,35 @@ async function viewSoldPhoto(idx) {
 setSoldMode('today'); // sets the initial button colors before any tab is even opened
 
 populateWtRangeOptions(); // fixed 0–100 list, doesn't need any data loaded first
+
+// v-add (BRO: "vsr ims file ki kuda logo add cehi. aa logo ni stock level file setting tab lo unna
+// logo ni tisuko" — reads the same "Store Settings" logo the Stock Level admin's Settings tab
+// already uploads/manages (StockBackend.gs ?action=storeSettings), cached in localStorage so it
+// still shows on repeat visits even before this fetch finishes or if opened offline.
+const IMS_LOGO_CACHE_KEY = 'vsrImsLogoUrl';
+function applyImsLogo_(url) {
+  const img = document.getElementById('imsLogo');
+  if (!img || !url) return;
+  img.src = url;
+  img.style.display = '';
+}
+function loadImsLogo_() {
+  try {
+    const cachedUrl = localStorage.getItem(IMS_LOGO_CACHE_KEY);
+    if (cachedUrl) applyImsLogo_(cachedUrl);
+  } catch (e) {}
+  fetch(STOCK_GAS_URL + '?action=storeSettings', { cache: 'no-store' })
+    .then(r => r.json())
+    .then(res => {
+      if (res && res.ok && res.settings && res.settings.logoUrl) {
+        applyImsLogo_(res.settings.logoUrl);
+        try { localStorage.setItem(IMS_LOGO_CACHE_KEY, res.settings.logoUrl); } catch (e) {}
+      }
+    })
+    .catch(() => {});
+}
+loadImsLogo_();
+
 initApp();
 
 // v-add (BRO: "every 5 mins ki sync backend lo run avali... 5 mins ki run ainapudu reload ani
